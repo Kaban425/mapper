@@ -1,0 +1,65 @@
+# `cargo deny check bans` — dependency half of the anti-ban guard.
+# Source scanning, ACL and binary imports are checked by scripts/antiban-guard.mjs.
+
+[graph]
+targets = ["x86_64-pc-windows-msvc"]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "allow"
+deny = [
+  # input injection, hooks, keyboard polling
+  { crate = "enigo", reason = "input injection" },
+  { crate = "rdev", reason = "global input hooks" },
+  { crate = "inputbot", reason = "input hooks and injection" },
+  { crate = "device_query", reason = "keyboard polling" },
+  { crate = "winput", reason = "input injection" },
+  { crate = "autopilot", reason = "input injection" },
+  { crate = "rustautogui", reason = "input injection and screen capture" },
+  { crate = "mouce", reason = "input injection" },
+  { crate = "livesplit-hotkey", reason = "low-level keyboard hook" },
+  { crate = "win-hotkeys", reason = "low-level keyboard hook" },
+  { crate = "willhook", reason = "low-level hooks" },
+  { crate = "multiinput", reason = "raw input" },
+  { crate = "global-hotkey", reason = "polls GetAsyncKeyState; Mapper uses its own RegisterHotKey wrapper" },
+  # screen capture
+  { crate = "xcap", reason = "screen capture" },
+  { crate = "screenshots", reason = "screen capture" },
+  { crate = "scrap", reason = "screen capture" },
+  { crate = "captrs", reason = "screen capture" },
+  { crate = "dxgcap", reason = "screen capture" },
+  { crate = "win-screenshot", reason = "screen capture" },
+  { crate = "windows-capture", reason = "screen capture" },
+  # other processes, memory, code injection
+  { crate = "sysinfo", reason = "process enumeration" },
+  { crate = "process-memory", reason = "reads other processes" },
+  { crate = "read-process-memory", reason = "reads other processes" },
+  { crate = "memflow", reason = "reads other processes" },
+  { crate = "dll-syringe", reason = "DLL injection" },
+  { crate = "retour", reason = "function hooking" },
+  { crate = "minhook", reason = "function hooking" },
+  { crate = "libloading", reason = "dynamic loading of arbitrary functions" },
+  # plugins that bring forbidden calls or broad access
+  { crate = "tauri-plugin-shell", reason = "arbitrary process spawning" },
+  { crate = "tauri-plugin-single-instance", reason = "uses FindWindowW and GetWindowThreadProcessId" },
+  { crate = "tauri-plugin-global-shortcut", reason = "built on global-hotkey" },
+]
+
+# Feature unification spans the whole graph, so these also catch a dependency that
+# quietly enables them.
+[[bans.features]]
+crate = "windows"
+deny = [
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_ProcessStatus",
+  "Graphics_Capture",
+  "Win32_UI_Magnification",
+]
+
+[[bans.features]]
+crate = "windows-sys"
+deny = [
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_ProcessStatus",
+  "Win32_UI_Magnification",
+]

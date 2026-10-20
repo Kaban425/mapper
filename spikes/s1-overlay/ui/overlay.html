@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mapper overlay</title>
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="overlay.css" />
+  </head>
+  <body>
+    <div id="root" class="hidden">
+      <svg id="grid" xmlns="http://www.w3.org/2000/svg"></svg>
+      <svg id="scene" xmlns="http://www.w3.org/2000/svg"></svg>
+
+      <section id="debug" class="panel">
+        <div class="title"><span class="dot"></span><span id="preset-label">ПРИБЛИЖЕНО</span></div>
+        <dl>
+          <dt class="label">Дист.</dt>
+          <dd class="value strong" id="distance">—</dd>
+          <dt class="label">Бегом</dt>
+          <dd class="value" id="time-run">—</dd>
+          <dt class="label">Dacia</dt>
+          <dd class="value" id="time-dacia">—</dd>
+          <dt class="label">ΔH</dt>
+          <dd class="value" id="dh">0 м</dd>
+          <dt class="label">Масштаб</dt>
+          <dd class="value" id="scale">не задан</dd>
+          <dt class="label">Экран</dt>
+          <dd class="value" id="screen-size">—</dd>
+          <dt class="label">Фокус</dt>
+          <dd class="value" id="focus-state">—</dd>
+        </dl>
+        <p class="hint">
+          ЛКМ — точка · ПКМ — убрать · колесо — ΔH (Shift ×10)<br />
+          Alt+Q — приближено · Alt+W — отдалено · Esc — выйти<br />
+          C — настроить масштаб · Ctrl+колесо — подогнать · G — сетка
+        </p>
+      </section>
+
+      <section id="calibrate" class="panel hidden">
+        <div class="label" id="calibrate-title">Настройка масштаба</div>
+        <div class="big" id="calibrate-step">Какие клетки будешь совмещать?</div>
+        <div class="value" id="calibrate-scale">1 — большие клетки (1 км) · 2 — маленькие клетки (100 м)</div>
+        <p class="hint">
+          1 / 2 — какие клетки · колесо — шире/уже · Shift+колесо — тонко · клик — перенести начало<br />
+          Enter — готово · Esc — отмена
+        </p>
+      </section>
+
+      <div id="click-to-start" class="panel hidden">
+        <div class="big">Кликни, чтобы начать замер</div>
+        <div class="label">Windows не отдал фокус автоматически · через 3 с окно закроется</div>
+      </div>
+    </div>
+
+    <div id="cycle" class="hidden">
+      <div class="panel cycle-card">
+        <div class="label">S-2 · цикл показа</div>
+        <div class="value big" id="cycle-seq">#0</div>
+      </div>
+    </div>
+
+    <script src="overlay.js"></script>
+  </body>
+</html>

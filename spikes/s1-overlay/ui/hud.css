@@ -1,0 +1,33 @@
+#hud {
+  position: fixed;
+  inset: 6px;
+  padding: 10px 16px 12px;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+#hud.warn {
+  border-color: var(--warn);
+}
+
+#hud-title {
+  color: var(--accent);
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#hud.warn #hud-title {
+  color: var(--warn);
+  font-size: 20px;
+}
+
+#hud-lines {
+  margin-top: 4px;
+  color: var(--muted);
+  font: 12px/1.45 var(--mono);
+  font-variant-numeric: tabular-nums;
+}

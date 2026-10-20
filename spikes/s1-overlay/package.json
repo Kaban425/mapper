@@ -1,0 +1,9 @@
+{
+  "name": "mapper-spike-s1",
+  "private": true,
+  "description": "Throwaway spike S-1..S-3 for Mapper. No npm dependencies; scripts only.",
+  "scripts": {
+    "guard": "node scripts/antiban-guard.mjs",
+    "guard:release": "node scripts/antiban-guard.mjs --exe auto"
+  }
+}
