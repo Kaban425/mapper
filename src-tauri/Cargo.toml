@@ -1,0 +1,62 @@
+[package]
+name = "mapper"
+version = "0.1.0"
+description = "Map distance ruler overlay"
+license = "MIT"
+edition = "2021"
+rust-version = "1.99"
+publish = false
+
+# Library + thin binary (Tauri 2 layout): the app lives in the library, main.rs only calls run().
+[lib]
+name = "mapper_lib"
+crate-type = ["rlib"]
+
+[[bin]]
+name = "mapper"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "=2.7.3", features = [] }
+
+[dependencies]
+# No default features: `dynamic-acl` would let code add capabilities at run time, past the
+# per-window ACL files (the guard requires this line). x11/dbus are Linux-only anyway.
+tauri = { version = "=2.12.4", default-features = false, features = ["wry", "compression", "common-controls-v6", "tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# Same versions Tauri uses, so nothing is compiled twice.
+webview2-com = "0.39"
+window-vibrancy = "0.8"
+windows-version = "0.1"
+
+# Win32 surface of Mapper's own code. Feature unification means dependencies enable more
+# (tao turns on Win32_System_Diagnostics_Debug, for example), so the real barrier is the
+# guard's API-name rules plus the feature bans in deny.toml.
+[dependencies.windows]
+version = "0.62"
+features = [
+  "Win32_Foundation",
+  "Win32_Globalization",
+  "Win32_Graphics_Dwm",
+  "Win32_Security",
+  "Win32_System_Threading",
+  "Win32_UI_Input",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+]
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = "symbols"
+
+# Used by the guard to inspect Mapper's own object file: with LTO the code of every
+# dependency would be merged into it.
+[profile.guard-obj]
+inherits = "release"
+lto = false
+codegen-units = 1

@@ -1,0 +1,19 @@
+{
+  "description": "Direct npm dependencies the project may declare (plan/eng.md §7.8). Transitive packages are checked against the banned list in scripts/guard/rules.mjs.",
+  "dependencies": ["@tauri-apps/api"],
+  "devDependencies": [
+    "@playwright/test",
+    "@sveltejs/vite-plugin-svelte",
+    "@tauri-apps/cli",
+    "@vitest/coverage-v8",
+    "fast-check",
+    "svelte",
+    "svelte-check",
+    "typescript",
+    "vite",
+    "vitest"
+  ],
+  "installScripts": {
+    "fsevents": "macOS-only optional dependency of the file watcher; not installed on Windows, and CI runs npm ci --ignore-scripts"
+  }
+}

@@ -1,0 +1,53 @@
+/* Design tokens (plan/ux.md §2). One dark theme: the game is dark and the yellow accent reads
+   best on dark glass. */
+:root {
+  color-scheme: dark;
+
+  --bg-solid: #111316;
+  --bg-tint: rgba(17, 19, 22, 0.55);
+  --glass-1: rgba(255, 255, 255, 0.06);
+  --glass-2: rgba(255, 255, 255, 0.09);
+  --glass-edge: rgba(255, 255, 255, 0.1);
+  --ov-alpha: 0.86;
+  --ov-panel: rgba(14, 16, 20, var(--ov-alpha));
+
+  --text: #f3f1ea;
+  --text-2: #c9c5b8;
+  --text-3: #a7a395;
+  --accent: #f2a900;
+  --accent-text: #ffc53d;
+  --accent-ink: #1a1400;
+  --accent-soft: rgba(242, 169, 0, 0.35);
+  --halo: rgba(0, 0, 0, 0.85);
+  --ok: #6fd08c;
+  --warn: #ffb870;
+  --danger: #ff7a7a;
+
+  --r-xs: 6px;
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+
+  --shadow-card: 0 4px 16px rgba(0, 0, 0, 0.25);
+  --shadow-panel: 0 10px 32px rgba(0, 0, 0, 0.4);
+  --sheen-top: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  --sheen-bottom: inset 0 -1px 0 rgba(0, 0, 0, 0.25);
+
+  --font-ui: "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  --font-display: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  --font-num: "Cascadia Mono", Consolas, ui-monospace, monospace;
+
+  --dur-fast: 120ms;
+  --dur-base: 160ms;
+  --dur-slow: 220ms;
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+  }
+}

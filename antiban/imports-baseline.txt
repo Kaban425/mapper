@@ -1,0 +1,28 @@
+# Forbidden-looking functions that the release exe imports through dependencies, with
+# the reason each one is unreachable or harmless. Format: Name  # reason
+# Every entry must also be explained in the README. The guard fails when Cargo.lock
+# no longer has the versions below, or when an entry is no longer imported: a dependency
+# update means re-auditing these lines.
+# audited: tao=0.37.1 muda=0.20.0 tauri=2.12.4 tauri-runtime-wry=2.12.2 softbuffer=0.4.8 wry=0.57.0 window-vibrancy=0.8.1
+#
+# Re-audited on mapper.exe 0.1.0 (Phase 1, 2026-10-21): the same 10 imports as the spike,
+# 337 functions by name, none by ordinal.
+#
+# Runtime lookups (GetProcAddress) are not in the import table, so they are listed here too.
+# All of them style or scale our own windows:
+#   tao, wry, tauri-runtime-wry, muda: DPI APIs (GetDpiForWindow, GetDpiForMonitor,
+#     SetProcessDpiAwarenessContext, AdjustWindowRectExForDpi, ...) and tao's pointer-input
+#     queries for messages our own windows receive (GetPointerFrameInfoHistory, ...)
+#   muda: uxtheme.dll ordinals 132/137 (ShouldAppsUseDarkMode, IsDarkModeAllowedForWindow)
+#   window-vibrancy: SetWindowCompositionAttribute for Acrylic/Blur on our own windows
+
+SendInput                # tao force_window_active (only via set_focus / fullscreen) and muda predefined Copy/Cut/Paste/SelectAll/Undo/Redo items; all banned by the source guard
+SetCursorPos             # tao Window::set_cursor_position; banned in source and ACL
+ClipCursor               # tao Window::set_cursor_grab; banned in source and ACL
+RegisterRawInputDevices  # tao event loop; Mapper sets DeviceEventFilter::Always, which calls it with RIDEV_REMOVE (unregisters)
+GetRawInputData          # tao WM_INPUT handler; no WM_INPUT arrives once raw input is removed
+GetAsyncKeyState         # tao snapshots key state once when one of OUR windows receives WM_SETFOCUS; no polling
+GetKeyboardState         # tao reads the key state of OUR thread's message queue while translating our own key messages
+FindWindowExW            # tauri-runtime-wry looks up its own resize-handler child under OUR window handle
+BitBlt                   # softbuffer copies our own pixel buffer into our own window (drawing, not capture)
+GetDIBits                # tauri converts our own icon bitmap to RGBA

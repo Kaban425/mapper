@@ -518,6 +518,9 @@ Guard переезжает в `scripts/antiban-guard.mjs` (точка входа
    `outerHTML`, `insertAdjacentHTML`, `document.write`, `localStorage`, `sessionStorage`,
    `indexedDB`, все API устройств и захвата из спайка. Те же группы проверяются в собранном
    `dist/**/*.js` (ловит код из npm), там же — отсутствие маркера `__MAPPER_MOCK__`.
+   `listen()` в `lib/ipc/events.ts` всегда с явным `target: { kind: "WebviewWindow", label }`
+   своего окна: Tauri доставляет `emit_to` по цели слушателя, а цель по умолчанию `Any` ловит
+   события всех окон (ревью безопасности фазы 1, вводится в фазе 2 вместе с событиями).
 4. **Обязательные строки и конфиг.** `device_event_filter(Always)`, вызов
    `raw_input::ensure_none`, манифест `asInvoker`/`uiAccess="false"`, `AppManifest::…commands(`;
    в `tauri.conf.json` (разбор JSON, не регулярка) — `withGlobalTauri:false`, `freezePrototype`,
@@ -528,10 +531,13 @@ Guard переезжает в `scripts/antiban-guard.mjs` (точка входа
    `generate_handler!`, функции с `#[tauri::command]` и объединение `allow-*` из capability.
 6. **Импорты собственного объектного файла.** Профиль `[profile.guard-obj]` (`inherits =
    "release"`, `lto = false`, `codegen-units = 1`): при fat LTO код зависимостей сливается в
-   один объект. `npm run guard:obj` выполняет
-   `cargo rustc --profile guard-obj --bin mapper --locked -- --emit=obj`, затем
-   `dumpbin /nologo /symbols` по `target/guard-obj/deps/mapper*.o` и собирает символы `UNDEF
-   External __imp_<имя>`. Проверено на пробном крейте с `windows 0.62.2` (raw-dylib):
+   один объект. Код Mapper живёт в библиотеке `mapper_lib` (бинарник `mapper` только вызывает
+   `run()`), поэтому `npm run guard:obj` выполняет
+   `cargo rustc --profile guard-obj --lib --locked -- --emit=obj`, затем
+   `dumpbin /nologo /symbols` по `target/guard-obj/deps/mapper_lib-*.o` и собирает символы `UNDEF
+   External __imp_<имя>`. Канарейка: проверка падает, если в объекте нет `__imp_RegisterHotKey`,
+   `__imp_SetForegroundWindow` и `__imp_GetRegisteredRawInputDevices` — так видно, что прочитан
+   нужный объект, а не пустой (ревью безопасности фазы 1). Проверено на пробном крейте с `windows 0.62.2` (raw-dylib):
    `__imp_GetForegroundWindow` и `__imp_SetForegroundWindow` видны как `UNDEF`. Любое имя из
    списка запрещённых — ошибка без исключений (baseline к нашему коду не применяется); любое
    имя вне `antiban/own-imports.txt` — ошибка, то есть новый Win32-вызов в коде Mapper требует

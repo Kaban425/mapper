@@ -1,0 +1,16 @@
+{
+  "description": "Direct Rust dependencies Mapper may declare, each with the reason it is needed (security review of Phase 1). Adding a crate means adding it here with a reason in the PR; transitive crates are checked by deny.toml and the imports baseline.",
+  "dependencies": {
+    "tauri": "app framework: windows, web views, tray, IPC (default features off, see Cargo.toml)",
+    "serde": "IPC payloads and the config file",
+    "serde_json": "IPC payloads and the config file",
+    "webview2-com": "WebView2 settings Tauri does not expose: idle mode, permission denial, no browser shortcuts",
+    "window-vibrancy": "Mica / Acrylic / Blur backdrops of Mapper's own windows",
+    "windows": "Win32 calls of Mapper's own code (platform/win only); exact features pinned in deny.toml",
+    "windows-version": "Windows build number for the start-up log"
+  },
+  "build-dependencies": {
+    "tauri-build": "embeds the manifest and generates the per-window ACL"
+  },
+  "dev-dependencies": {}
+}

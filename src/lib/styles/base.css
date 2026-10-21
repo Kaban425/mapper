@@ -1,0 +1,35 @@
+@import "./tokens.css";
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  color: var(--text);
+  font: 14px/20px var(--font-ui);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Overlay and HUD windows are transparent; the main window shows Mica/Acrylic through. */
+html.transparent,
+html.transparent body {
+  background: transparent;
+  overflow: hidden;
+}
+
+.num {
+  font-family: var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, 0.6);
+}
