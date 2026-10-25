@@ -1,6 +1,7 @@
 // Rule data for the anti-ban guard (plan/eng.md §7). Paths are relative to the repository
 // root; entries ending in "/" are directory prefixes. Rule patterns must not use the `g`
-// flag: they are reused with RegExp.test across lines.
+// flag: they are reused with RegExp.test across lines. `skipTests` exempts *.test.ts files,
+// which no build bundles.
 
 export const RUST = [".rs"];
 export const WEB = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".svelte", ".html"];
@@ -26,8 +27,12 @@ const AUTOSTART_RS = `${PLATFORM_WIN}autostart.rs`;
 const SHELL_RS = `${PLATFORM_WIN}shell.rs`;
 const WEBVIEW_RS = `${PLATFORM_WIN}webview.rs`;
 const WINDOWS_RS = "src-tauri/src/app/windows.rs";
+const HUD_RS = "src-tauri/src/app/hud.rs";
+const PLACEMENT_RS = "src-tauri/src/app/overlay/placement.rs";
 const UPDATE_DIR = "src-tauri/src/update/";
 const IPC_DIR = "src/lib/ipc/";
+const TAURI_TS = "src/lib/ipc/tauri.ts";
+const MOCK_TS = "src/lib/ipc/mock.ts";
 
 // `ext` limits a rule to file types, `only` to paths, `allow` exempts paths.
 export const SOURCE_RULES = [
@@ -41,10 +46,12 @@ export const SOURCE_RULES = [
     pattern: /\b(PostMessage[AW]?|SendMessage\w*|SendNotifyMessage[AW]?|SendDlgItemMessage[AW]?|BroadcastSystemMessage\w*)\b|\bHWND_BROADCAST\b/,
   },
   {
-    group: "hooks, raw input, keyboard polling",
+    group: "hooks, raw input, key and mouse polling",
     pattern:
-      /\b(SetWindowsHookEx[AW]?|SetWinEventHook|RegisterRawInputDevices|GetRawInputData|GetRawInputBuffer|GetAsyncKeyState|GetKeyState|GetKeyboardState|GetLastInputInfo)\b/,
+      /\b(SetWindowsHookEx[AW]?|SetWinEventHook|RegisterRawInputDevices|GetRawInputData|GetRawInputBuffer|GetAsyncKeyState|GetKeyState|GetKeyboardState|GetLastInputInfo|GetCursorPos|GetPhysicalCursorPos|GetCursorInfo|GetMouseMovePointsEx)\b/,
   },
+  // The cursor is read once per hotkey press, only to pick the monitor to open on.
+  { group: "cursor position outside placement.rs", pattern: /\bcursor_position\s*\(|\bcursorPosition\b/, allow: [PLACEMENT_RS] },
   { group: "hotkeys outside platform/win/hotkey.rs", pattern: /\b(RegisterHotKey|UnregisterHotKey)\s*\(/, allow: [HOTKEY_RS] },
   {
     group: "other processes",
@@ -79,6 +86,9 @@ export const SOURCE_RULES = [
     pattern: /\bset[_-]focus\b|\bsetFocus\b|\bfullscreen\s*\(|set_fullscreen|setFullscreen|"?fullscreen"?\s*:\s*true/,
   },
   { group: "cursor control", pattern: /(set_cursor_position|set_cursor_grab|setCursorPosition|setCursorGrab)/ },
+  // tao shows an existing window with SW_SHOW, which may activate it: the HUD uses
+  // window_style::show_no_activate / hide only.
+  { group: "HUD shown through tao", pattern: /\.(show|hide|set_visible|unminimize|maximize)\s*\(/, only: [HUD_RS] },
   // muda's predefined edit items (also behind tauri's `copy_with_text` and friends) send Ctrl+key.
   {
     group: "menu items that synthesise Ctrl+key",
@@ -135,15 +145,36 @@ export const SOURCE_RULES = [
   // Capabilities added at run time or loaded from another folder bypass antiban/acl.json.
   { group: "capabilities outside the ACL files", pattern: /\badd_capability\b|capabilities_path_pattern|permissions_path_pattern|"dynamic-acl"/ },
   { group: "devtools", pattern: /"devtools"|\.devtools\s*\(|open_devtools/ },
-  { group: "game names and files", pattern: /\b(TslGame|PUBG|BATTLEGROUNDS|steamapps|GameUserSettings|Engine\.ini)\b/i },
+  { group: "game files and processes", pattern: /\b(TslGame|steamapps|GameUserSettings|Engine\.ini)\b/i },
+  // The game's name may appear only in UI texts ("for PUBG: BATTLEGROUNDS", display-mode tips).
+  { group: "game names", pattern: /\b(PUBG|BATTLEGROUNDS)\b/i, allow: ["src/lib/i18n/"] },
   { group: "dependency overrides", pattern: /^\s*\[(patch|replace)\b/ },
   { group: "elevation", pattern: /requireAdministrator|highestAvailable|uiAccess\s*=\s*"true"/ },
-  // Web view: the only door to Rust is src/lib/ipc, and nothing leaves the machine.
-  { group: "Tauri API outside lib/ipc", pattern: /@tauri-apps\/|__TAURI\w*__/, ext: WEB, allow: [IPC_DIR] },
+  // Web view: the only door to Rust is src/lib/ipc (the Tauri API itself only in tauri.ts),
+  // and nothing leaves the machine.
+  { group: "Tauri API outside lib/ipc/tauri.ts", pattern: /@tauri-apps\/|__TAURI\w*__/, ext: WEB, allow: [TAURI_TS] },
+  // The default target `Any` would also deliver events Rust sends to the other windows.
+  { group: "listen without a target window", pattern: /^(?!.*\btarget\s*:).*\blisten\s*\(/, only: [TAURI_TS] },
+  { group: "transport outside lib/ipc", pattern: /\$transport\b/, ext: WEB, allow: [IPC_DIR, "vite.config.ts", "vitest.config.ts"] },
+  // The test transport answers every command with success: never in a window's code.
+  {
+    group: "test transport outside the tests",
+    pattern: /__MAPPER_MOCK__|\bipc\/mock\b|["']\.\/mock["']/,
+    ext: WEB,
+    allow: [MOCK_TS, "vite.config.ts", "vitest.config.ts"],
+    skipTests: true,
+  },
   { group: "Tauri API module", pattern: /@tauri-apps\/(?!api\/(core|event)["'])/, ext: WEB },
   // invoke("plugin:window|...") reaches plugin commands by name, past any import rule.
   { group: "plugin commands from the web view", pattern: /["'`]plugin:/, ext: WEB },
-  { group: "HUD calls commands", pattern: /lib\/ipc\/commands/, ext: WEB, only: ["src/apps/hud/"] },
+  // The HUD only listens: events and types, no commands, no transport of its own.
+  { group: "HUD reaches past events and types", pattern: /\bipc\/(?!(events|types)["'])/, ext: WEB, only: ["src/apps/hud/"] },
+  {
+    group: "commands outside the main window and the overlay",
+    pattern: /\bipc\/commands\b/,
+    ext: WEB,
+    allow: [IPC_DIR, "src/apps/main/", "src/apps/overlay/"],
+  },
   {
     group: "network from the web view",
     pattern: /\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|WebTransport)\b/,
@@ -156,6 +187,16 @@ export const SOURCE_RULES = [
       /\beval\s*\(|\bnew\s+Function\b|\b(innerHTML|outerHTML|insertAdjacentHTML|createContextualFragment)\b|\bdocument\s*\.\s*write(ln)?\b|\{@html\b/,
     ext: WEB,
   },
+];
+
+// The same limits by resolved path, so `../ipc/./commands` or a detour through `..` cannot
+// dodge them: `target` matches the imported file (extension optional), `from` lists the
+// importers allowed to reach it.
+export const IMPORT_RULES = [
+  { group: "commands outside the main window and the overlay", target: /^src\/lib\/ipc\/commands(\.ts)?$/, from: [IPC_DIR, "src/apps/main/", "src/apps/overlay/"] },
+  { group: "test transport outside the tests", target: /^src\/lib\/ipc\/mock(\.ts)?$/, from: [] },
+  { group: "Tauri transport imported directly (use $transport)", target: /^src\/lib\/ipc\/tauri(\.ts)?$/, from: [] },
+  { group: "HUD reaches past events and types", target: /^src\/lib\/ipc\/(?!(events|types)(\.ts)?$)/, only: ["src/apps/hud/"] },
 ];
 
 // Statements that must exist: they switch dependency behaviour off or pin privileges.
@@ -214,7 +255,25 @@ export const REQUIRED = [
     pattern: /^tauri\s*=\s*\{[^}\n]*default-features\s*=\s*false/m,
     why: "tauri's default `dynamic-acl` feature would allow capabilities added at run time",
   },
+  {
+    // A loop or a second call here would turn the one-off monitor choice into mouse polling.
+    file: PLACEMENT_RS,
+    pattern: /\bcursor_position\s*\(/,
+    count: 1,
+    exact: true,
+    why: "the cursor is read once, in choose(), to pick the monitor",
+  },
+  {
+    file: "vite.config.ts",
+    pattern: /mode === "e2e" \? "mock\.ts" : "tauri\.ts"/,
+    count: 1,
+    exact: true,
+    why: "the test transport is picked only by `--mode e2e`",
+  },
 ];
+
+// The exact `build` script: `npm run build` (Tauri's beforeBuildCommand) must not pick a mode.
+export const BUILD_SCRIPT = "vite build";
 
 // C-7: claims that Mapper is safe or invisible to anti-cheat. Russian-first, and `\b` is
 // ASCII-only in JS, so the Russian stems carry no word boundaries.
@@ -263,7 +322,8 @@ export const FORBIDDEN_IMPORTS = new Set([
   "SendInput", "keybd_event", "mouse_event", "BlockInput", "SetCursorPos", "ClipCursor", "InjectTouchInput",
   "InjectSyntheticPointerInput", "AttachThreadInput", "SwitchToThisWindow",
   "SetWindowsHookExA", "SetWindowsHookExW", "SetWinEventHook", "RegisterRawInputDevices", "GetRawInputData",
-  "GetRawInputBuffer", "GetAsyncKeyState", "GetKeyboardState",
+  "GetRawInputBuffer", "GetAsyncKeyState", "GetKeyboardState", "GetCursorPos", "GetPhysicalCursorPos",
+  "GetCursorInfo", "GetMouseMovePointsEx",
   "OpenProcess", "OpenThread", "ReadProcessMemory", "WriteProcessMemory", "VirtualAllocEx", "CreateRemoteThread",
   "NtReadVirtualMemory", "NtQuerySystemInformation", "NtQueryInformationProcess", "DebugActiveProcess",
   "EnumProcesses", "K32EnumProcesses", "EnumProcessModules", "K32EnumProcessModules", "CreateToolhelp32Snapshot",

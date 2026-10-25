@@ -1,0 +1,21 @@
+{
+  "description": "Mortar sight values from the drag-free model of PUBGMortar.NET (M = 700 m), rounded to 0.01 m. Regression vectors: a change here needs a reason (in-game check G-2).",
+  "cases": [
+    { "distanceM": 400, "dhM": 35, "status": "ok", "sightM": 411.71 },
+    { "distanceM": 400, "dhM": -35, "status": "ok", "sightM": 389.63 },
+    { "distanceM": 250, "dhM": 10, "status": "ok", "sightM": 251.88 },
+    { "distanceM": 250, "dhM": -10, "status": "ok", "sightM": 248.18 },
+    { "distanceM": 600, "dhM": 25, "status": "ok", "sightM": 615.26 },
+    { "distanceM": 650, "dhM": -60, "status": "ok", "sightM": 616.06 },
+    { "distanceM": 130, "dhM": -20, "status": "ok", "sightM": 128.18 },
+    { "distanceM": 300, "dhM": 0.2, "status": "ok", "sightM": 300 },
+    { "distanceM": 500, "dhM": 120, "status": "ok", "sightM": 570.73 },
+    { "distanceM": 690, "dhM": 40, "status": "noSolution", "sightM": null },
+    { "distanceM": 125, "dhM": -50, "status": "tooClose", "sightM": null },
+    { "distanceM": 121, "dhM": 0, "status": "ok", "sightM": 121 },
+    { "distanceM": 700, "dhM": 0, "status": "ok", "sightM": 700 },
+    { "distanceM": 100, "dhM": 0, "status": "tooClose", "sightM": null },
+    { "distanceM": 750, "dhM": 0, "status": "tooFar", "sightM": null },
+    { "distanceM": 600, "dhM": 400, "status": "noSolution", "sightM": null }
+  ]
+}

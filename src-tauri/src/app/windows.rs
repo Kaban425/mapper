@@ -131,7 +131,7 @@ fn create_hud(app: &AppHandle) -> Result<(), Box<dyn Error>> {
     let win = builder(app, HUD, "hud.html")
         .title("Mapper HUD")
         .window_classname("Mapper.Hud")
-        .inner_size(380.0, 150.0)
+        .inner_size(380.0, 140.0)
         .transparent(true)
         .decorations(false)
         .shadow(false)

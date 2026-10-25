@@ -7,6 +7,8 @@
 #
 # Re-audited on mapper.exe 0.1.0 (Phase 1, 2026-10-21): the same 10 imports as the spike,
 # 337 functions by name, none by ordinal.
+# Phase 2 (2026-10-25): GetCursorPos is now forbidden unless listed, hence 11 entries;
+# 340 functions by name, none by ordinal.
 #
 # Runtime lookups (GetProcAddress) are not in the import table, so they are listed here too.
 # All of them style or scale our own windows:
@@ -23,6 +25,7 @@ RegisterRawInputDevices  # tao event loop; Mapper sets DeviceEventFilter::Always
 GetRawInputData          # tao WM_INPUT handler; no WM_INPUT arrives once raw input is removed
 GetAsyncKeyState         # tao snapshots key state once when one of OUR windows receives WM_SETFOCUS; no polling
 GetKeyboardState         # tao reads the key state of OUR thread's message queue while translating our own key messages
+GetCursorPos             # tao cursor_position: app/overlay/placement.rs reads it once per hotkey press to pick the monitor; the source guard allows exactly one call, there
 FindWindowExW            # tauri-runtime-wry looks up its own resize-handler child under OUR window handle
 BitBlt                   # softbuffer copies our own pixel buffer into our own window (drawing, not capture)
 GetDIBits                # tauri converts our own icon bitmap to RGBA

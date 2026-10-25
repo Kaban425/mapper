@@ -1,0 +1,9 @@
+{
+  "preset": "near",
+  "totalM": 500,
+  "errorM": 2.3,
+  "segmentsM": [500],
+  "dhM": 35,
+  "mortar": { "status": "ok", "sightM": 512.6 },
+  "travel": { "sprintS": 79.4, "daciaS": 18, "daciaVerified": false }
+}

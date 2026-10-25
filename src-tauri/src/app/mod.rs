@@ -1,6 +1,8 @@
 //! Start-up, shutdown and window events.
 
+pub mod hud;
 pub mod main_window;
+pub mod overlay;
 pub mod timers;
 pub mod tray;
 pub mod windows;
@@ -9,7 +11,8 @@ use std::error::Error;
 
 use tauri::{AppHandle, Manager, Window, WindowEvent};
 
-use crate::hotkeys::{self, spec, HotkeyService, HotkeyStatus};
+use crate::config::{Config, ConfigStore, Language};
+use crate::hotkeys::{spec, HotkeyService, HotkeyStatus};
 use crate::logging;
 use crate::platform::win::single_instance::Instance;
 use crate::platform::win::{locale, raw_input, webview};
@@ -31,9 +34,12 @@ pub fn setup(app: &AppHandle, instance: Instance) -> Result<(), Box<dyn Error>> 
     log_monitors(app);
     raw_input::ensure_none()?;
     logging::info("app", "raw input devices registered by this process: 0");
+    let config = load_config(app)?;
+    app.manage(overlay::Overlay::default());
+    app.manage(hud::HudState::default());
     windows::create_all(app)?;
     app.manage(Timers::start()?);
-    let hotkeys = start_hotkeys(app)?;
+    let hotkeys = start_hotkeys(app, &config)?;
     let registered = |s: &HotkeyStatus| if s.registered { "registered" } else { "NOT registered" };
     logging::set_summary(format!(
         "{versions}; raw input devices 0; near {} {}; far {} {}",
@@ -42,7 +48,7 @@ pub fn setup(app: &AppHandle, instance: Instance) -> Result<(), Box<dyn Error>> 
         hotkeys[1].accelerator,
         registered(&hotkeys[1]),
     ));
-    let russian = locale::is_russian_ui();
+    let russian = config.language == Language::Ru;
     let tray = tray::build(app, russian, [hotkeys[0].accelerator.as_str(), hotkeys[1].accelerator.as_str()])?;
     app.manage(tray);
     let handle = app.clone();
@@ -72,11 +78,27 @@ fn log_monitors(app: &AppHandle) {
     }
 }
 
-fn start_hotkeys(app: &AppHandle) -> Result<[HotkeyStatus; 2], Box<dyn Error>> {
-    let wanted = [spec::parse(hotkeys::DEFAULT_NEAR)?, spec::parse(hotkeys::DEFAULT_FAR)?];
-    // Phase 2 wires the press to the overlay; until then it is only logged.
-    let (service, statuses) = HotkeyService::start(wanted, |preset, _at| {
+/// The first language follows Windows; after that the file decides.
+fn load_config(app: &AppHandle) -> Result<Config, Box<dyn Error>> {
+    let language = if locale::is_russian_ui() { Language::Ru } else { Language::En };
+    let store = ConfigStore::load(&app.path().app_config_dir()?, Config { language, ..Config::default() });
+    for notice in store.notices() {
+        logging::warn("config", format!("{notice:?}"));
+    }
+    let config = store.get();
+    let calibrated = config.calibrations.keys().map(ToString::to_string).collect::<Vec<_>>().join(", ");
+    logging::info("config", format!("loaded; scales for [{calibrated}]"));
+    app.manage(store);
+    Ok(config)
+}
+
+fn start_hotkeys(app: &AppHandle, config: &Config) -> Result<[HotkeyStatus; 2], Box<dyn Error>> {
+    let wanted = [spec::parse(&config.hotkeys.near)?, spec::parse(&config.hotkeys.far)?];
+    let handle = app.clone();
+    let (service, statuses) = HotkeyService::start(wanted, move |preset, at| {
         logging::info("hotkeys", format!("{} pressed", preset.as_str()));
+        let inner = handle.clone();
+        let _ = handle.run_on_main_thread(move || overlay::on_hotkey(&inner, preset, at));
     })?;
     for (status, name) in statuses.iter().zip(["near", "far"]) {
         if status.registered {
@@ -92,18 +114,30 @@ fn start_hotkeys(app: &AppHandle) -> Result<[HotkeyStatus; 2], Box<dyn Error>> {
 /// Every window keeps living until the app exits: closing the main window hides it to the
 /// tray, and Alt+F4 on the overlay or HUD must not destroy them.
 pub fn on_window_event(window: &Window, event: &WindowEvent) {
-    if let WindowEvent::CloseRequested { api, .. } = event {
-        api.prevent_close();
-        if window.label() == windows::MAIN {
-            main_window::hide(window.app_handle());
-        } else {
-            let _ = window.hide();
+    match event {
+        WindowEvent::CloseRequested { api, .. } => {
+            api.prevent_close();
+            if window.label() == windows::MAIN {
+                main_window::hide(window.app_handle());
+            } else {
+                let _ = window.hide();
+            }
         }
+        WindowEvent::Focused(focused) if window.label() == windows::OVERLAY => {
+            overlay::on_focus(window.app_handle(), *focused);
+        }
+        _ => {}
     }
 }
 
+/// Tray "Exit" and `quit_app`: an open overlay first closes by its normal rules.
 pub fn quit(app: &AppHandle) {
     logging::info("app", "exit requested");
+    overlay::quit(app);
+}
+
+/// Called once the overlay is hidden.
+pub fn exit_now(app: &AppHandle) {
     if let Some(hotkeys) = app.try_state::<HotkeyService>() {
         hotkeys.shutdown();
     }

@@ -6,7 +6,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 
 import { readJson } from "./context.mjs";
-import { BANNED_NPM } from "./rules.mjs";
+import { BANNED_NPM, BUILD_SCRIPT } from "./rules.mjs";
 
 const NPM_ALLOWLIST = "antiban/npm-allowlist.json";
 const LIFECYCLE_SCRIPTS = ["preinstall", "install", "postinstall", "prepare", "prepack"];
@@ -100,6 +100,9 @@ export function checkNpm(ctx) {
     for (const name of Object.keys(pkg[field] ?? {})) {
       if (!(allow[field] ?? []).includes(name)) ctx.fail(`npm     ${name} (${field}) is not in ${NPM_ALLOWLIST}`);
     }
+  }
+  if (pkg.scripts?.build !== BUILD_SCRIPT) {
+    ctx.fail(`npm     package.json "build" must be exactly "${BUILD_SCRIPT}" (no mode, no extra steps)`);
   }
   const scripts = Object.keys(pkg.scripts ?? {});
   for (const script of scripts) {

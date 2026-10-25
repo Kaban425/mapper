@@ -1,0 +1,25 @@
+{
+  "description": "Error model of plan/eng.md §5 (1.5 px click, √2 per segment ends, √n segments, 0.5 px alignment over whole cells up to 90 % of the screen width). Regression vectors, metres rounded to 0.0001.",
+  "cases": [
+    {
+      "label": "near, 2 points, 412 m",
+      "points": [{ "x": 100, "y": 100 }, { "x": 512, "y": 100 }],
+      "cellMeters": 100, "cellPx": 100, "viewportW": 2048, "errorM": 2.2358
+    },
+    {
+      "label": "near, route of 3 points",
+      "points": [{ "x": 0, "y": 0 }, { "x": 300, "y": 400 }, { "x": 300, "y": 1000 }],
+      "cellMeters": 100, "cellPx": 170.4, "viewportW": 2048, "errorM": 1.95
+    },
+    {
+      "label": "far, 3.5 km across the screen",
+      "points": [{ "x": 100, "y": 500 }, { "x": 1850, "y": 500 }],
+      "cellMeters": 1000, "cellPx": 500, "viewportW": 2048, "errorM": 5.4093
+    },
+    {
+      "label": "far, small cells on a 1080p screen",
+      "points": [{ "x": 0, "y": 0 }, { "x": 1200, "y": 900 }],
+      "cellMeters": 1000, "cellPx": 240, "viewportW": 1920, "errorM": 10.699
+    }
+  ]
+}

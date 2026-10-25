@@ -1,6 +1,8 @@
 //! App commands. Each one checks the calling window (second line of defence after the
 //! per-window capability ACL) and validates its input.
 
+pub mod overlay;
+
 use serde::Serialize;
 use tauri::{AppHandle, WebviewWindow};
 
@@ -12,6 +14,11 @@ use crate::logging::{self, Level, MAX_LINE_CHARS};
 pub enum ErrorCode {
     InvalidInput,
     NotAllowed,
+    /// The command belongs to an older overlay session or another phase.
+    StaleSession,
+    /// The config was written by a newer Mapper and is read-only.
+    ReadOnly,
+    Io,
 }
 
 /// Commands return only a code; the UI picks the message in its own language.

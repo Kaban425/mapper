@@ -8,8 +8,8 @@
   --glass-1: rgba(255, 255, 255, 0.06);
   --glass-2: rgba(255, 255, 255, 0.09);
   --glass-edge: rgba(255, 255, 255, 0.1);
-  --ov-alpha: 0.86;
-  --ov-panel: rgba(14, 16, 20, var(--ov-alpha));
+  /* Lighter glass by the author's choice (config 0.50–0.94); text carries a shadow instead. */
+  --ov-alpha: 0.65;
 
   --text: #f3f1ea;
   --text-2: #c9c5b8;

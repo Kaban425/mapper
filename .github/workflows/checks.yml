@@ -40,6 +40,8 @@ jobs:
       - run: npm run check
       - run: npm run test:coverage
       - run: npm run build
+      # Overlay and HUD against the mock transport, in the runner's Microsoft Edge (no download).
+      - run: npm run e2e
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked

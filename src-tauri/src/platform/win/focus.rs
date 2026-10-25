@@ -56,6 +56,12 @@ pub fn capture_foreground(own: &[OwnHwnd]) -> Foreground {
     }
 }
 
+/// Whether one of our windows is the foreground window; nothing else about it is read.
+pub fn is_foreground(win: OwnHwnd) -> bool {
+    // SAFETY: no arguments; the value is only compared with our own handle.
+    unsafe { GetForegroundWindow() == win.hwnd() }
+}
+
 /// Tries to make our window the foreground window and reports whether it actually is now.
 pub fn try_activate(win: OwnHwnd) -> bool {
     let hwnd = win.hwnd();

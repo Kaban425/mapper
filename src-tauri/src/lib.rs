@@ -3,6 +3,7 @@
 
 pub mod app;
 pub mod commands;
+pub mod config;
 pub mod hotkeys;
 pub mod logging;
 pub mod platform;
@@ -27,7 +28,14 @@ pub fn run() {
         // tao registers every mouse and keyboard for raw input by default; Mapper reads
         // input only through its own windows, so the registration is removed entirely.
         .device_event_filter(tauri::DeviceEventFilter::Always)
-        .invoke_handler(tauri::generate_handler![commands::log_line, commands::quit_app])
+        .invoke_handler(tauri::generate_handler![
+            commands::log_line,
+            commands::quit_app,
+            commands::overlay::overlay_exit,
+            commands::overlay::overlay_blank,
+            commands::overlay::save_calibration,
+            commands::overlay::submit_result
+        ])
         .on_window_event(app::on_window_event)
         .setup(move |tauri_app| {
             if let Err(err) = app::setup(tauri_app.handle(), instance) {

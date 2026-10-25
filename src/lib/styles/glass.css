@@ -1,0 +1,56 @@
+/* Overlay and HUD glass (plan/ux.md §2.3): tone, sheen and shadow, no blur — there is
+   nothing behind a transparent overlay to blur. Only --ov-alpha follows the setting;
+   lines, points and numbers stay opaque. */
+
+.glass {
+  /* var(--ov-alpha) right here: a colour token built from it on :root would be resolved
+     there once and inherit 0.65, whatever a window sets. */
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02) 45%),
+    rgba(14, 16, 20, var(--ov-alpha));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-panel), var(--sheen-top), var(--sheen-bottom);
+  color: var(--text);
+  /* Keeps text readable over light parts of the map through the lighter glass. */
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.75);
+}
+
+.kicker {
+  margin: 0;
+  color: var(--accent-text);
+  font: 700 13px/16px var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.hint {
+  color: var(--text-2);
+  font: 400 13px/18px var(--font-ui);
+}
+
+.warn {
+  color: var(--warn);
+}
+
+.big-number {
+  color: var(--accent);
+  font: 600 28px/32px var(--font-num);
+  font-variant-numeric: tabular-nums;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 20px;
+  padding: 0 5px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--r-xs);
+  background: rgba(255, 255, 255, 0.06);
+  font: 600 12px/18px var(--font-num);
+  text-align: center;
+}
+
+/* Warning sign before a line: shape plus colour, never colour alone. */
+.icon {
+  margin-right: 6px;
+}

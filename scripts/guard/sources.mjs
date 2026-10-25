@@ -1,20 +1,24 @@
 // Source rules: forbidden APIs per line, statements that must exist, and wording.
 
 import { readdirSync } from "node:fs";
-import { extname } from "node:path";
+import { extname, posix } from "node:path";
 
 import { isLineComment, matchesPath, stripLineComments, walk } from "./context.mjs";
 import {
   CLAIMS,
   EXTRA_FILES,
+  IMPORT_RULES,
   NEGATION_BEFORE,
   REQUIRED,
   SOURCE_DIRS,
   SOURCE_EXT,
   SOURCE_RULES,
+  WEB,
   WORD_DIRS,
   WORD_FILES,
 } from "./rules.mjs";
+
+const WEB_EXT = new Set(WEB);
 
 function sourceFiles(ctx) {
   const configs = readdirSync(ctx.path("src-tauri"))
@@ -28,17 +32,42 @@ function sourceFiles(ctx) {
   return [...new Set(files)].filter((file) => SOURCE_EXT.has(extname(file)));
 }
 
+const isTest = (path) => /\.test\.ts$/.test(path);
+
 const applies = (rule, path) =>
   (!rule.ext || rule.ext.includes(extname(path))) &&
   (!rule.only || matchesPath(path, rule.only)) &&
+  !(rule.skipTests && isTest(path)) &&
   !matchesPath(path, rule.allow ?? []);
+
+// `from "..."`, `import "..."` and `import("...")` with a relative path.
+const RELATIVE_IMPORT = /(?:\bfrom\s*|\bimport\s*\(?\s*)["'](\.{1,2}\/[^"']*)["']/g;
+
+const importBlocked = (rule, path) =>
+  rule.only ? matchesPath(path, rule.only) : !matchesPath(path, rule.from ?? []);
+
+/**
+ * Web code under src/ may not reach files outside it, where no rule looks, and the IPC
+ * limits hold for the resolved path too. Tests may: they read golden files and the mock.
+ */
+function checkImports(ctx, path, text) {
+  if (!path.startsWith("src/") || !WEB_EXT.has(extname(path)) || isTest(path)) return;
+  for (const match of text.matchAll(RELATIVE_IMPORT)) {
+    const target = posix.normalize(posix.join(posix.dirname(path), match[1]));
+    if (!target.startsWith("src/")) ctx.fail(`source  ${path}  [import outside src/]  ${match[1]}`);
+    for (const rule of IMPORT_RULES) {
+      if (rule.target.test(target) && importBlocked(rule, path)) ctx.fail(`source  ${path}  [${rule.group}]  ${match[1]}`);
+    }
+  }
+}
 
 export function checkSources(ctx) {
   const files = sourceFiles(ctx);
   for (const path of files) {
     const rules = SOURCE_RULES.filter((rule) => applies(rule, path));
-    ctx
-      .read(path)
+    const text = ctx.read(path);
+    checkImports(ctx, path, stripLineComments(text));
+    text
       .split("\n")
       .forEach((line, index) => {
         if (isLineComment(line)) return;

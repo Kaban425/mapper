@@ -14,12 +14,14 @@
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "guard": "node scripts/antiban-guard.mjs",
     "guard:exe": "node scripts/antiban-guard.mjs --exe auto",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "e2e": "playwright test"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.4"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@tauri-apps/cli": "2.12.3",
     "@vitest/coverage-v8": "5.0.5",

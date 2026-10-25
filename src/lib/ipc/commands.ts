@@ -1,19 +1,30 @@
-// The only place that talks to Rust. Phase 1 exposes the two commands every window needs;
-// the rest of the contract (plan/eng.md §4) lands with the screens that use it.
-import { invoke } from "@tauri-apps/api/core";
+// Commands the windows may call (plan/eng.md §4). Each window's capability file decides which
+// of them it can actually reach; the HUD calls none.
+
+import { transport } from "$transport";
+
+import type { MeasurementResult, Preset } from "../core/types";
+import type { ExitReason, GridArgs } from "./types";
 
 export type LogLevel = "info" | "warn" | "error";
 
 /** What every command rejects with (`IpcError` in Rust); the UI picks the text itself. */
-export type IpcErrorCode = "invalid_input" | "not_allowed";
+export type IpcErrorCode = "invalid_input" | "not_allowed" | "stale_session" | "read_only" | "io";
 
-export function logLine(level: LogLevel, msg: string): Promise<void> {
-  return invoke("log_line", { level, msg });
-}
+export const logLine = (level: LogLevel, msg: string): Promise<void> => transport.invoke("log_line", { level, msg });
 
-export function quitApp(): Promise<void> {
-  return invoke("quit_app");
-}
+export const quitApp = (): Promise<void> => transport.invoke("quit_app");
+
+export const overlayExit = (seq: number, reason: ExitReason): Promise<void> =>
+  transport.invoke("overlay_exit", { seq, reason });
+
+export const overlayBlank = (seq: number): Promise<void> => transport.invoke("overlay_blank", { seq });
+
+export const saveCalibration = (seq: number, preset: Preset, calibration: GridArgs): Promise<void> =>
+  transport.invoke("save_calibration", { seq, preset, calibration });
+
+export const submitResult = (seq: number, result: MeasurementResult): Promise<void> =>
+  transport.invoke("submit_result", { seq, result });
 
 /** The error code of a rejected command, or a short description of anything else. */
 export function describeError(error: unknown): string {

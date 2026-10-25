@@ -9,8 +9,9 @@ use windows::Win32::Graphics::Dwm::{
 };
 use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_EXSTYLE, SC_KEYMENU, SWP_FRAMECHANGED, SWP_NOACTIVATE,
-    SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WM_SYSCOMMAND, WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
+    GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, ShowWindow, GWL_EXSTYLE, HWND_TOPMOST, SC_KEYMENU,
+    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SW_HIDE, SW_SHOWNOACTIVATE, WM_SYSCOMMAND,
+    WS_EX_APPWINDOW, WS_EX_TOOLWINDOW,
 };
 
 use super::focus::OwnHwnd;
@@ -40,6 +41,25 @@ pub fn set_tool_window(win: OwnHwnd) {
             let flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED;
             let _ = SetWindowPos(hwnd, None, 0, 0, 0, 0, flags);
         }
+    }
+}
+
+/// Shows the window on top without activating it. tao's `show()` uses SW_SHOW once the window
+/// exists, and right after the overlay had the focus that can take it away from the game.
+/// tao's own visibility flag stays off, so such a window is hidden with `hide` below too.
+pub fn show_no_activate(win: OwnHwnd) {
+    let hwnd = win.hwnd();
+    // SAFETY: showing and raising our own window; neither call activates it.
+    unsafe {
+        let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+        let _ = SetWindowPos(hwnd, Some(HWND_TOPMOST), 0, 0, 0, 0, SWP_NOACTIVATE | SWP_NOMOVE | SWP_NOSIZE);
+    }
+}
+
+pub fn hide(win: OwnHwnd) {
+    // SAFETY: hiding our own window.
+    unsafe {
+        let _ = ShowWindow(win.hwnd(), SW_HIDE);
     }
 }
 

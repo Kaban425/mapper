@@ -2,7 +2,7 @@
 
 **Feature**: mapper-overlay
 **Started**: 2026-10-20
-**Status**: IN_PROGRESS — Phase 1 PASS and committed; Phase 2 next
+**Status**: IN_PROGRESS — Phases 1 and 2 PASS and committed; Phase 3 (main window) next
 
 ## Phase 1: Каркас и платформа — PASS (2026-10-21)
 
@@ -131,3 +131,136 @@ No C-1..C-9 violation in the code. Guard gaps, each verified and fixed (every by
 ### User validation
 - 2026-10-21: **PASS** — the author checked the exe: window, tray, close to tray, second copy and exit work.
   Commit after the security review (done above).
+
+## Phase 2: Ядро замера, оверлей и HUD — PASS (2026-10-25)
+
+Implemented directly (2026-10-22).
+
+### Deliverables
+- T2.1 `src/lib/core`: `constants`, `types`, `calibration` (cell from clicks, nudge, wheel factor, 1 km ↔ 100 m,
+  fits-viewport, 10× check, 3-cell check), `measurement` (segments, route, error model, ticks — eng's
+  `error.ts`/`ticks.ts` live here), `mortar` (PUBGMortar.NET model; L and the sight value must be in 121–700 m;
+  for L ≤ 700 a solvable shot never needs a sight above 700, so only "too close" can come from R),
+  `travel`, `format` (RU narrow no-break spaces, real minus, m:ss / h:mm:ss), `result`.
+  Golden vectors `tests/golden/{mortar,error}.json`, fast-check properties.
+- T2.2 `session.ts` (pure reducer: activation, 4-step setup with step back, measuring, Ctrl+wheel / T / middle
+  click with delayed save, preset switch keeping points, swallowed activation click, end of session → save +
+  submit) and `exitGate.ts` (held keys, hotkey key-up, safety timeout).
+- T2.9 `src/lib/i18n`: `ru.ts` source, `en.ts` typed against it, `t()` with `{name}` and plural forms; tests
+  check keys, placeholders and Russian one/few/many. Overlay and HUD texts only; main window texts in Phase 3.
+- T2.3 `src-tauri/src/config`: types and defaults (Dacia 100 km/h per О-1, panel opacity 0.78–0.94 per ux §9.1
+  instead of eng's 0.35–1), `MonitorKey` (`2560x1440@125`), `validate` (clamps, canonical hotkeys, drops broken
+  scales, keeps 16 newest monitors), `ConfigStore` (atomic tmp → sync → rename, broken file kept as
+  `config.broken-<unix>.json`, newer schema read-only, 256 KiB limit). Nothing is written until the first change.
+- T2.4 `app/overlay`: `phase.rs` pure machine with the spike rules (13 tests), `mod.rs` executor (no lock across
+  window calls, timers through `mapper-timers`, raw-input self-check on every activation, foreground captured
+  once and restored once), `placement.rs` (pinned → cursor → primary monitor, monitor − 1 px, DPI-safe resize),
+  `events.rs` payloads, `result.rs` (validated `MeasurementResult`, kept in memory only).
+  `app/hud.rs`: top-left 24 CSS px on the measured monitor, 10 s with a generation counter, idle when hidden.
+  Tray "measure" items and hotkeys now open the overlay; quitting closes an open overlay first.
+- T2.5 commands `overlay_exit`, `overlay_blank`, `save_calibration`, `submit_result`: overlay window only,
+  `deny_unknown_fields`, range checks, `stale_session` for an older session; monitor, size and scale of a saved
+  scale come from the session. COMMANDS / handler / ACL / acl.json updated together (guard checks all four).
+- T2.6 `src/lib/ipc`: `types`, `validate` (shape checks of every event), `transport` with `tauri.ts` (listeners
+  always target their own window — security review LOW 4) and `mock.ts` (e2e), `events.ts`, `commands.ts`.
+  Contract fixtures `src-tauri/tests/ipc-fixtures` written by Rust (`UPDATE_FIXTURES=1`) and checked by
+  `tests/ipc/contract.test.ts`; hand-written argument fixtures parsed by Rust.
+- T2.7 overlay UI: `controller.svelte.ts` (reducer + timers + exit gate + events), `Grid`/`Route` SVG layers,
+  `MeasurePanel` (moves away from the cursor), `CalibratePanel` (step N of 4, 10× warning, step-1 buttons),
+  `ClickToStart` (countdown), `PresetBadge` (word + lens shape), `view.ts` pure texts, `glass.css`.
+- T2.8 HUD UI: result in its own language, fade in/out, no commands.
+- T2.10 e2e: Playwright 1.64.1 on the installed Microsoft Edge (no browser download), Vite `--mode e2e` on
+  127.0.0.1:5174, 16 scenarios × 3 scales (1, 1.25, 1.5) = 48 runs; added to CI.
+
+### Found and fixed on the way
+- Vite with root `src/` did not load `svelte.config.js` (also in the release build) — now passed explicitly.
+- The reducer kept `focused` after "focus not taken"; it now matches Rust's phase machine.
+- Visual pass on screenshots: rows in the UI font with tabular figures (mono only for the big distance),
+  travel as label · time · speed columns, "not verified" on its own line, spacing after ⚠.
+- Guard: the game's name is allowed only in `src/lib/i18n/` (UI texts); game files/processes stay banned.
+
+### Verification (2026-10-22)
+- Vitest 180/180, core coverage ≈ 96 % lines / 92 % branches; svelte-check 0/0; e2e 48/48.
+- Rust: fmt, clippy `-D warnings`, 75/75 tests; cargo deny ok; guard passed.
+- Release `mapper.exe` 3.3 MB, guard:exe passed (same 10 baseline imports, 340 by name, 0 by ordinal).
+- Smoke run: config loaded, Alt+Q / Alt+W registered, raw input 0. The overlay itself needs the in-game check.
+
+### Author's in-game check and changes (2026-10-22)
+In-game: calibration fast and clear. Requests, decided with the author:
+- **Route carried across a zoom change** (replaces the in-place preset switch, ux F-5 updated): the other
+  hotkey parks the route (2 min) and closes the overlay after the keys are up, HUD says how to continue;
+  the same hotkey again restores the points in place; the other zoom shows a ghost of the route at the
+  cursor and the anchor click lays it out by the ratio of the two scales (`core/carry.ts`, property test:
+  the length in metres is kept). Rust: the other hotkey now requests an exit (`SwitchPreset` + exit
+  timeout); `overlay_exit` reason `switchZoom` → HUD notice `routeKept` instead of a result.
+- **T removed** (it looked like G at full zoom-in: 1 km lines leave the screen); G shows and hides the grid.
+- **Lighter glass**: panel opacity default 0.65, range 0.50–0.94 (below ux's WCAG floor of 0.78 by the
+  author's choice); text gets a dark shadow. Config schema 2 with a migration: version 1's default 0.86
+  becomes 0.65 (the player could not have chosen it yet).
+- **Thinner lines and numbers**: route 1.6 px (halo 3.6), ticks 1.1/1.5 px, points r 5, map labels UI font
+  500 13 px with a 3 px halo, big numbers 600 28/30 px.
+
+### Security review — no C-1..C-9 violation, fixed (2026-10-25)
+- HIGH the HUD could take the focus: tao's `show()` uses SW_SHOW once a window exists (`MARKER_DONT_FOCUS`
+  only applies at creation), right after the overlay had the focus. The HUD is now shown with raw
+  `SW_SHOWNOACTIVATE` + `HWND_TOPMOST`/`SWP_NOACTIVATE` and hidden with `SW_HIDE` (`window_style.rs`); a warning
+  is logged if it ever is the foreground window; guard: no `.show/.hide/set_visible(` in `hud.rs`.
+- MEDIUM mouse polling was not banned: `GetCursorPos`, `GetPhysicalCursorPos`, `GetCursorInfo`,
+  `GetMouseMovePointsEx` join the polling rule and FORBIDDEN_IMPORTS; `cursor_position(` only in
+  `placement.rs`, exactly once (REQUIRED); `GetCursorPos` explained in the imports baseline (README: Phase 5).
+- LOW tray-started measurement captured the tray menu's own window as "foreign": `on_tray` keeps no foreground.
+- LOW no monitor or window: the phase machine now asks for focus only after `Shown { ok }`; a failed show
+  returns to Hidden without activating anything.
+- LOW guard: HUD imports only `ipc/events` and `ipc/types`; `$transport` only in `lib/ipc` (+ Vite configs);
+  commands only from `lib/ipc`, `apps/main`, `apps/overlay`; the Tauri API only in `tauri.ts`, whose every
+  `listen(` names a target; the mock only in `mock.ts` (tests exempt), picked only by `--mode e2e` (REQUIRED),
+  `scripts.build` pinned to `vite build`, `--exe` fails if `dist/` contains `__MAPPER_MOCK__`; relative imports
+  from `src/` are resolved: none may leave `src/`, and the IPC limits hold by resolved path (`../ipc/./commands`).
+  Every rule was checked against a planted violation.
+- LOW config read/write mismatch: `MonitorKey::new` returns None for a size `parse` would refuse; a scale is
+  checked with `is_valid_calibration` before writing (`invalid_input` instead of a silent drop); calibrations
+  are parsed one entry and one preset at a time, so one bad entry no longer resets the whole file.
+- LOW the 150 ms blank timeout could turn the last save or result into `stale_session`: saves and results of
+  the latest session are accepted after it closed; a late result shows the HUD at once.
+- Nits: `CalibrationArgs.origin` is a `PointArgs` with `deny_unknown_fields`; the ETag must be visible ASCII;
+  Playwright starts Vite with `npx --no --`.
+
+### Code review — no CRITICAL, fixed (2026-10-25)
+- MEDIUM the Overlay lock was held across `SetForegroundWindow` (temporary guard in one `let`): taken out first.
+- MEDIUM the store could overwrite `config.json` after a failed read or a failed move aside (a backup or
+  antivirus lock): such a file is left in place and moved aside before the first write, never written over
+  (`Access::MoveFirst`, notice `config-unreadable`); Windows test with a no-share handle.
+- MEDIUM the opacity setting never reached the screen (`--ov-panel` was resolved once on `:root`): `.glass`
+  uses `var(--ov-alpha)` directly; e2e checks the computed colour of the panel and the HUD.
+- MEDIUM "saved" was shown before Rust answered and refusals were only logged: "saved" appears on success,
+  a refusal stays on screen with its reason (newer config, disk error, other); Ctrl+wheel says "adjusted".
+- LOW the save pause restarted on every mouse move: only scale changes restart it.
+- LOW a parked route came back in place on another monitor: the monitor key travels with it; another monitor
+  takes the anchor click.
+- LOW the "route kept" HUD depended on beating Rust's exit timeout: a late `switchZoom` exit is accepted while
+  the session closes, and the blank hand-over sends it if the key-up never came.
+- LOW two identical points said "too high": distance 0 is "too close".
+- LOW the HUD flashed on quit: `Hide { hud: false }` while quitting.
+- LOW the 3-cell check stayed all session: it goes once the player moves on from the first two-point measurement.
+- LOW grid and route were rebuilt on every mouse move: narrow derived inputs, only the cursor parts follow it.
+- LOW tests: controller unit tests (save answers, save pause, park lifetime, late exit, hand-over; the expiry
+  test fails when the expiry is removed); unused `hud.mortar` / `hud.dh` removed.
+- Not changed, LOW 9 (a key-up that arrives before the exit request): the gate keeps waiting up to 800 ms.
+  Any "a key-up was seen earlier" rule would also accept the release from the press that *opened* the overlay
+  (hold Alt, tap Q twice), handing focus back while Q is down; the slow path is the safe one.
+
+### Verification after the reviews (2026-10-25)
+- Vitest 203/203 (core 96.6 % statements, 98.5 % lines); svelte-check 0/0; e2e 60/60 (20 × 3 scales).
+- Rust: fmt, clippy `-D warnings`, 80/80 tests; cargo deny ok after tokio 1.54.0 → 1.54.1 (RUSTSEC-2026-0384,
+  published since the last run); guard passed (46 rules, 12 required statements).
+- Release `mapper.exe` 3.3 MB; guard:exe passed (11 baseline imports, 340 by name, 0 by ordinal, no test
+  transport in `dist/`). Smoke run: existing config with the 2560x1440@125 scale loaded, hotkeys registered,
+  raw input 0. Copied to `test-build/`.
+
+### User validation
+- 2026-10-25: **PASS** — the author checked the build in game: route carry, lighter glass, "saved" and the
+  HUD work, the game keeps the focus. Commit approved.
+
+### Notes
+- The sandboxed build shell blocks loopback connections; e2e runs needed the sandbox lifted (localhost only).
+- Playwright report upload as a CI artifact is left for Phase 5 (needs a pinned `upload-artifact` SHA).

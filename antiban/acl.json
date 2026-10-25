@@ -1,8 +1,24 @@
 {
   "description": "Exact upper bound of what each window's web view may call (plan/eng.md §4, §7.5). A capability may grant a subset; anything else fails the guard. Widening this file needs a reason in the PR.",
   "windows": {
-    "main": ["core:event:allow-listen", "core:event:allow-unlisten", "allow-log-line", "allow-quit-app"],
-    "overlay": ["core:event:allow-listen", "core:event:allow-unlisten", "allow-log-line"],
-    "hud": ["core:event:allow-listen", "core:event:allow-unlisten"]
+    "main": [
+      "core:event:allow-listen",
+      "core:event:allow-unlisten",
+      "allow-log-line",
+      "allow-quit-app"
+    ],
+    "overlay": [
+      "core:event:allow-listen",
+      "core:event:allow-unlisten",
+      "allow-overlay-exit",
+      "allow-overlay-blank",
+      "allow-save-calibration",
+      "allow-submit-result",
+      "allow-log-line"
+    ],
+    "hud": [
+      "core:event:allow-listen",
+      "core:event:allow-unlisten"
+    ]
   }
 }

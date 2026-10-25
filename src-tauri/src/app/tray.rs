@@ -8,7 +8,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, Tray
 use tauri::AppHandle;
 
 use super::main_window;
-use crate::logging;
+use crate::preset::Preset;
 
 const ID_OPEN: &str = "open";
 const ID_NEAR: &str = "measure-near";
@@ -77,9 +77,9 @@ pub fn build(app: &AppHandle, russian: bool, hotkeys: [&str; 2]) -> Result<TrayI
 fn on_menu(app: &AppHandle, event: MenuEvent) {
     match event.id().as_ref() {
         ID_OPEN => main_window::show(app),
-        // The overlay is wired in Phase 2; the items already exist as the fallback for a
-        // hotkey another program has taken.
-        ID_NEAR | ID_FAR => logging::info("tray", format!("{} requested", event.id().as_ref())),
+        // The fallback for a hotkey another program has taken.
+        ID_NEAR => super::overlay::on_tray(app, Preset::Near),
+        ID_FAR => super::overlay::on_tray(app, Preset::Far),
         ID_QUIT => super::quit(app),
         _ => {}
     }

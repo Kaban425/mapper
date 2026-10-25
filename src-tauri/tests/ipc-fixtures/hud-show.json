@@ -1,0 +1,23 @@
+{
+  "kind": "result",
+  "result": {
+    "preset": "near",
+    "totalM": 412.0,
+    "errorM": 2.2,
+    "segmentsM": [
+      412.0
+    ],
+    "dhM": 35.0,
+    "mortar": {
+      "status": "ok",
+      "sightM": 424.1
+    },
+    "travel": {
+      "sprintS": 65.4,
+      "daciaS": 14.8,
+      "daciaVerified": false
+    }
+  },
+  "lang": "ru",
+  "opacity": 0.86
+}
