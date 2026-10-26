@@ -2,7 +2,7 @@
 
 **Feature**: mapper-overlay
 **Started**: 2026-10-20
-**Status**: IN_PROGRESS — Phases 1 and 2 PASS and committed; Phase 3 (main window) next
+**Status**: IN_PROGRESS — Phases 1–3 PASS and committed; Phase 4 (system integration, full guard) next
 
 ## Phase 1: Каркас и платформа — PASS (2026-10-21)
 
@@ -264,3 +264,128 @@ In-game: calibration fast and clear. Requests, decided with the author:
 ### Notes
 - The sandboxed build shell blocks loopback connections; e2e runs needed the sandbox lifted (localhost only).
 - Playwright report upload as a CI artifact is left for Phase 5 (needs a pinned `upload-artifact` SHA).
+
+## Phase 3: Главное окно (GUI) — PASS (2026-10-26)
+
+Implemented directly (2026-10-25). Scope agreed by default after the author's
+question was interrupted: T4.1 autostart and T4.4 links/folders pulled into this phase (local and
+small); T4.2 network update check stays in Phase 4 (only its on/off setting is saved now); links
+keep the `OWNER` placeholder until the author names the GitHub account.
+
+### Deliverables
+- T3.1 components (`src/lib/components`): Button (with `ref`), Toggle (`role="switch"`), Slider
+  (`aria-valuetext`), NumberField (Enter/blur, refusal under the field, `aria-invalid`), Segmented
+  (radio group, arrows), StatusBadge (tick / circle / triangle + word), Steps, Dialog (native
+  `<dialog>`, `data-focus`). Main window layout in `src/apps/main/main.css`: only the content scrolls,
+  forced-colors fallbacks, focus ring from `base.css`.
+- T3.2 `app/snapshot.rs` (`AppSnapshot`: settings without bookkeeping fields, `HotkeysState`,
+  connected displays, scales per monitor key, pinned-missing, armed preset, open overlay session, last
+  measurement, autostart status) and `commands/main_window.rs`: `get_snapshot`, `update_settings`
+  (`deny_unknown_fields`, values out of range refused, Dacia "not verified" goes away when typed,
+  pinned monitor resolved by name), `set_hotkey` (parse + `spec::check_recordable` + test
+  `RegisterHotKey`, saved and the tray relabelled), `suspend_hotkeys` (30 s limit, ends when the window
+  loses focus), `arm_calibration` (10 min, consumed by the next press of that hotkey), `reset_calibration`,
+  `set_autostart`, `open_link`, `open_folder`, `hide_main_window`. Events `snapshot-changed` (only while
+  the window is visible; the window asks again when shown) and `tray-hint`. 16 commands agree across
+  build.rs, lib.rs, Rust and both ACL files (guard).
+- T3.3 `app/main_window.rs`: X / Alt+F4 → tray; the first time the window shows the dialog instead
+  (`tray_hint_shown`); shown without tao's focus helper and retries busy hotkeys; created hidden and shown
+  at the end of start-up unless started with `--autostart` (then only when the wizard is not done or a
+  hotkey is busy — part of T4.3).
+- T3.4 wizard (`screens/Wizard.svelte` + `screens/wizard/*`): 4 steps with the step kept in the config,
+  risk tick required, language switch on step 1, step 4 statuses from the overlay (`waiting →
+  calibrating → ready`, 10× warning, a busy hotkey can be re-recorded right there), Enter = Next,
+  Alt+← = Back, focus on the step heading.
+- T3.5 Home: monitor choice, a card per zoom (ready / not set / armed, scale kept for another
+  resolution, hotkey busy with "choose another" and "retry"), reset with a confirmation (focus on
+  Cancel), last measurement as in the HUD (`segmentsLine` moved to `lib/view/result.ts`),
+  troubleshooting `<details>`, config notices.
+- T3.6 `HotkeyRow.svelte` + `recorder.ts`: the recorder's rules mirror `check_recordable` (Alt/Ctrl +
+  letter/digit/arrow, F1–F24 alone, no Win, no Alt+F4, no F12, not the other preset); arrows added to
+  `spec.rs`.
+- T3.7 Settings: hotkeys + defaults, language, speeds with ranges 3–10 m/s and 20–200 km/h (config ranges,
+  eng §6), panel transparency 0–100 % ↔ opacity 0.94–0.50 with samples over light and dark grounds,
+  monitor (cursor / pinned display), start with Windows (+ Task Manager warning), update check on/off,
+  rerun the introduction.
+- T3.8 About: version, MIT, KRAFTON line, links (`open_link` enum → constant URL → `explorer`),
+  does / doesn't (incl. reading the cursor on a hotkey press), the shared risk text, config and log folders.
+- T4.1 `platform/win/autostart.rs` (HKCU Run with `"<exe>" --autostart`, StartupApproved read only,
+  repaired at start-up when the exe moved) and T4.4 `platform/win/shell.rs` (explorer only).
+- i18n: main window texts in their own dictionary (`i18n/main.{ru,en}.ts`, `tm()`), checked by the same
+  tests as the overlay texts. Wording: the step 2 heading is «Честно о риске» / "Honest about the risk"
+  (ux had «…о безопасности», which the C-7 rule refuses), the security link is «Сообщить об уязвимости»,
+  the English headline avoids "no ban".
+- Tray texts and the busy-hotkey tooltip follow language and hotkey changes without a rebuild.
+- T3.9 e2e: `tests/e2e/main.spec.ts` with `main-mock.ts` (a fake Rust in the page): wizard with RU → EN
+  switch, keyboard, hotkey recording incl. refusals and busy, Home → recorder, recalibrate and reset,
+  last measurement, tray dialog, speed refusal, Ctrl+3 and zoom.
+
+### Verification (2026-10-25)
+- Vitest 389/389 (core 96.6 % statements); svelte-check 0/0; Playwright 87/87 (29 scenarios × 3 scales).
+- Rust: fmt, clippy `-D warnings`, 92/92 tests; cargo deny ok; guard passed (16 commands).
+- Release exe: guard:exe passed (same 11 baseline imports, 342 by name, 0 by ordinal, no test transport in
+  dist). Smoke run: config with the existing scale loaded, hotkeys registered, raw input 0.
+- Visual pass on screenshots of every screen (Edge, 960×640): fixed the step heading focus box, the footer
+  pushed off screen, stretched hotkey columns and language segments, and the heavy last-measurement line.
+
+### Code review — no CRITICAL, fixed (2026-10-26)
+- HIGH the hidden main web view was never put to sleep (a tray-only start kept it at full memory):
+  `create_main` idles it; `show` wakes it.
+- HIGH re-recording a busy combination said "free — saved": `Bindings::set` probes a busy one again
+  while paused, and the row shows "saved" only without an error.
+- MEDIUM the recorder stayed in "recording" after the 30 s auto-resume: it returns to idle when the
+  snapshot says the hotkeys are back.
+- MEDIUM `publish_soon` ran inline on the main thread (tauri runs `run_on_main_thread` at once there):
+  now posted from the timer thread after 50 ms and coalesced.
+- MEDIUM "Defaults" did nothing for a swapped pair: new command `reset_hotkeys` sets both at once
+  (`Bindings::set_both`, all or nothing); a refusal is shown.
+- MEDIUM autostart repair took the entry from any other copy: see the security review.
+- MEDIUM 200 % zoom scrolled sideways: below 640 CSS px the sidebar becomes a top bar, grids shrink;
+  Playwright checks every wizard step and screen at 480 × 320.
+- MEDIUM the recorder used the US key position: letters follow the layout (`e.key`), as RegisterHotKey's
+  virtual keys do (QWERTZ Z, AZERTY A); non-Latin layouts keep the US position.
+- LOW: pause flag and safety timer set before asking the hotkey thread, timers cancelled when replaced
+  (pause, arming); tray tooltip refreshed after resume/retry ("Alt+Q и Alt+W готовы", every busy one
+  named); a hotkey that could not be saved is put back; snapshots carry a `revision` and the window
+  ignores older ones and validates command answers; Rust refusals shown under number fields; the
+  re-run wizard ends on Home; config notices shown in the wizard; a disabled placeholder for an unplugged
+  pinned monitor; a second close hides even if the page never answered or the config is read-only;
+  `set_zoom` failure only logged; `args_os`; wizard keys ignored under a dialog; Ctrl+Alt+letter refused
+  as AltGr (Rust and UI); listener failure no longer leaves "Проверяем…"; focus back to the card after
+  fixing a busy hotkey in step 4; Next/Done use `aria-disabled` (reachable with the hint); h2 under h1;
+  spoken label for the last measurement; «закреплён» on Home; unused keys removed; the risk checkbox
+  follows Rust after a refused save.
+- Not changed: ranges are still duplicated in the UI (noted for Phase 5); a config write per slider
+  keyboard step is acceptable.
+
+### Security review — no CRITICAL/HIGH, fixed (2026-10-26)
+- MEDIUM `explorer` was resolved through the search path (exe folder first, CWE-427): started as
+  `GetSystemWindowsDirectoryW()\explorer.exe`; folders only through `OwnFolder` (config, logs).
+- MEDIUM autostart took any "Mapper" Run value as its own: the value is now named `dev.mapper.app`, only
+  `"<…\mapper.exe>" --autostart` counts, repair only when that exe no longer exists, case-insensitive
+  path compare, the command line built from the raw path (no lossy text), refused above 260 characters
+  (`path_too_long` with a message).
+- MEDIUM the F-key note claimed F-keys are invisible to the game (C-7): now «Windows перехватывает до окна
+  игры: в игре они ничего не нажимают»; the wording rule catches "invisible to / don't reach the game".
+- MEDIUM the `OWNER/mapper` placeholder could ship: `npm run guard -- --release` fails on it (Phase 5
+  release workflow).
+- LOW: `suspend_hotkeys` only for the focused main window and a running pause is not extended; risk
+  acknowledgement enforced in Rust (`firstRunDone` needs `riskAccepted`); does / doesn't now say Mapper
+  listens to its two hotkeys outside its own windows and hands the focus back on Esc; the start-up text
+  says the window opens when something needs the player. F12 is already refused by `parse`.
+- Guard: process start only `Command::new(explorer()?)`, exactly twice in shell.rs, no extra
+  arguments/environment there; `Command as` / `process::{` / `restart(` banned; every registry API and
+  `HKEY_*` only in autostart.rs, machine-wide keys nowhere; raw IPC (`chrome.webview`, `ipc.postMessage`)
+  banned in web code; wording rule for "invisible to the game"; release placeholder check.
+
+### Verification after the reviews (2026-10-26)
+- Vitest 394/394 (core 96.6 %); svelte-check 0/0; Playwright 96/96 (32 scenarios × 3 scales, incl. the
+  narrow window).
+- Rust: fmt, clippy `-D warnings`, 98/98 tests; cargo deny ok; guard passed (`--release` fails only on
+  OWNER, as intended).
+- Release exe 3.4 MB: guard:exe passed (same 11 baseline imports, 343 by name, 0 by ordinal). Smoke run
+  clean. Copied to `test-build/`.
+
+### User validation
+- 2026-10-26: **PASS** — the author checked the main window: wizard, Home, Settings (hotkey recording,
+  transparency, language), About, close to tray and start with Windows work. Commit approved.

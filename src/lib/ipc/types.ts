@@ -78,6 +78,121 @@ export interface GridArgs {
   readonly origin: Point;
 }
 
+// ------------------------------------------------------------------ main window
+
+export type NoticeCode = "config-reset" | "config-newer" | "config-unreadable";
+
+export interface HotkeyStatus {
+  readonly accelerator: string;
+  readonly registered: boolean;
+  /** Absent while the hotkey works or is paused. */
+  readonly error?: "busy";
+}
+
+export interface HotkeysState {
+  readonly near: HotkeyStatus;
+  readonly far: HotkeyStatus;
+  /** Paused for the hotkey recorder. */
+  readonly suspended: boolean;
+}
+
+export interface MonitorRef {
+  readonly name: string;
+  readonly x: number;
+  readonly y: number;
+  readonly w: number;
+  readonly h: number;
+}
+
+export type MonitorMode = { readonly mode: "cursor" } | { readonly mode: "pinned"; readonly pinned: MonitorRef };
+
+export interface Settings {
+  readonly language: Language;
+  readonly hotkeys: Readonly<Record<Preset, string>>;
+  readonly speeds: Speeds;
+  readonly panelOpacity: number;
+  readonly monitor: MonitorMode;
+  readonly updatesEnabled: boolean;
+  readonly firstRunDone: boolean;
+  readonly wizardStep: number;
+  readonly riskAccepted: boolean;
+  readonly trayHintShown: boolean;
+  readonly uiZoom: number;
+}
+
+/** A connected monitor. */
+export interface Display {
+  readonly name: string;
+  readonly key: string;
+  readonly label: string;
+  readonly primary: boolean;
+  readonly pinned: boolean;
+}
+
+/** The scales of one monitor key (connected or kept from before). */
+export interface MonitorScales {
+  readonly key: string;
+  readonly label: string;
+  readonly connected: boolean;
+  readonly primary: boolean;
+  readonly near: Calibration | null;
+  readonly far: Calibration | null;
+}
+
+export interface OverlayNow {
+  readonly preset: Preset;
+  readonly start: "measure" | "calibrate";
+}
+
+export interface LastMeasurement {
+  readonly result: MeasurementResult;
+  readonly monitorKey: string;
+  /** Unix time, ms. */
+  readonly at: number;
+}
+
+export interface AutostartStatus {
+  readonly enabled: boolean;
+  readonly approvedByWindows: boolean;
+  readonly pathMatches: boolean;
+}
+
+export interface AppSnapshot {
+  /** Grows with every snapshot Rust builds: an older one never replaces a newer one. */
+  readonly revision: number;
+  readonly version: string;
+  readonly readOnly: boolean;
+  readonly notices: readonly NoticeCode[];
+  readonly settings: Settings;
+  readonly hotkeys: HotkeysState;
+  readonly displays: readonly Display[];
+  readonly scales: readonly MonitorScales[];
+  readonly pinnedMissing: boolean;
+  readonly armed: Preset | null;
+  readonly overlay: OverlayNow | null;
+  readonly lastMeasurement: LastMeasurement | null;
+  readonly autostart: AutostartStatus;
+}
+
+/** `update_settings`: only the named fields change (Rust refuses unknown ones). */
+export interface SettingsPatch {
+  readonly language?: Language;
+  readonly sprintMps?: number;
+  readonly daciaKmh?: number;
+  readonly resetSpeeds?: true;
+  readonly panelOpacity?: number;
+  readonly monitor?: { readonly mode: "cursor" } | { readonly mode: "pinned"; readonly name: string };
+  readonly updatesEnabled?: boolean;
+  readonly firstRunDone?: boolean;
+  readonly wizardStep?: number;
+  readonly riskAccepted?: boolean;
+  readonly uiZoom?: number;
+}
+
+export type Link = "repo" | "releases" | "issues" | "license" | "security" | "risk";
+export type Folder = "config" | "logs";
+export type ResetTarget = Preset | "both";
+
 /** Every event and its payload. */
 export interface Events {
   "overlay-activating": OverlayActivating;
@@ -87,6 +202,9 @@ export interface Events {
   "overlay-exit-request": SeqEvent;
   "overlay-blank-request": BlankRequest;
   "hud-show": HudShow;
+  "snapshot-changed": AppSnapshot;
+  /** The first close of the main window: show the tray dialog instead of hiding. */
+  "tray-hint": Record<string, never>;
 }
 
 export type EventName = keyof Events;

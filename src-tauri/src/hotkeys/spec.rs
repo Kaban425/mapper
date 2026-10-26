@@ -9,6 +9,7 @@ pub const MOD_SHIFT: u32 = 0x0004;
 pub const MOD_WIN: u32 = 0x0008;
 
 const VK_F1: u32 = 0x70;
+const VK_F4: u32 = 0x73;
 const VK_F12: u32 = 0x7B;
 const VK_F24: u32 = 0x87;
 
@@ -50,7 +51,7 @@ impl std::error::Error for HotkeyParseError {}
 
 const MODIFIERS: [(u32, &str); 4] = [(MOD_CONTROL, "Ctrl"), (MOD_ALT, "Alt"), (MOD_SHIFT, "Shift"), (MOD_WIN, "Win")];
 
-const NAMED_KEYS: [(u32, &str); 10] = [
+const NAMED_KEYS: [(u32, &str); 14] = [
     (0x20, "Space"),
     (0x09, "Tab"),
     (0x2D, "Insert"),
@@ -61,6 +62,10 @@ const NAMED_KEYS: [(u32, &str); 10] = [
     (0x22, "PageDown"),
     (0xC0, "`"),
     (0x13, "Pause"),
+    (0x25, "Left"),
+    (0x26, "Up"),
+    (0x27, "Right"),
+    (0x28, "Down"),
 ];
 
 fn modifier_bit(token: &str) -> Option<u32> {
@@ -100,6 +105,10 @@ fn key_code(token: &str) -> Option<u32> {
         "pgup" => "pageup",
         "pgdn" => "pagedown",
         "backquote" | "tilde" => "`",
+        "arrowleft" => "left",
+        "arrowup" => "up",
+        "arrowright" => "right",
+        "arrowdown" => "down",
         other => other,
     };
     NAMED_KEYS.iter().find(|(_, name)| name.eq_ignore_ascii_case(alias)).map(|(vk, _)| *vk)
@@ -141,6 +150,47 @@ pub fn parse(input: &str) -> Result<HotkeySpec, HotkeyParseError> {
         return Err(HotkeyParseError::NeedsModifier(name));
     }
     Ok(HotkeySpec { modifiers, vk })
+}
+
+/// Why the hotkey recorder refuses a combination that `parse` accepts (plan/ux.md §6.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PolicyError {
+    /// Win combinations belong to Windows.
+    Win,
+    /// A letter, digit or arrow without Alt or Ctrl would stop working in the game's chat.
+    NeedsAltOrCtrl,
+    /// A key the recorder does not offer: Space, Tab, Insert, the numpad and so on.
+    Key,
+    /// Alt+F4 closes the window in front.
+    AltF4,
+    /// Ctrl+Alt+letter is AltGr+letter on many layouts (€, ę, @): it would take a character away.
+    AltGr,
+}
+
+/// What a newly recorded hotkey may be: Alt or Ctrl (Shift optional, not both Alt and Ctrl) with a
+/// letter or digit, Alt / Ctrl with an arrow, or F1–F24 with or without modifiers (F12 is refused
+/// by `parse`). Saved configs are only checked by `parse`.
+pub fn check_recordable(spec: HotkeySpec) -> Result<(), PolicyError> {
+    if spec.modifiers & MOD_WIN != 0 {
+        return Err(PolicyError::Win);
+    }
+    if is_function_key(spec.vk) {
+        let alt_f4 = spec.vk == VK_F4 && spec.modifiers & MOD_ALT != 0;
+        return if alt_f4 { Err(PolicyError::AltF4) } else { Ok(()) };
+    }
+    // Virtual-key codes of 0–9 and A–Z equal their ASCII codes.
+    let letter_or_digit = (0x30..=0x39).contains(&spec.vk) || (0x41..=0x5A).contains(&spec.vk);
+    let arrow = (0x25..=0x28).contains(&spec.vk);
+    if !(letter_or_digit || arrow) {
+        return Err(PolicyError::Key);
+    }
+    if spec.modifiers & (MOD_ALT | MOD_CONTROL) == 0 {
+        return Err(PolicyError::NeedsAltOrCtrl);
+    }
+    if letter_or_digit && spec.modifiers & (MOD_ALT | MOD_CONTROL) == MOD_ALT | MOD_CONTROL {
+        return Err(PolicyError::AltGr);
+    }
+    Ok(())
 }
 
 fn key_name(vk: u32) -> String {
@@ -212,6 +262,34 @@ mod tests {
             let spec = parse(text).unwrap();
             assert_eq!(format(spec), text);
             assert_eq!(parse(&format(spec)), Ok(spec));
+        }
+    }
+
+    #[test]
+    fn arrows_parse_and_format() {
+        assert_eq!(parse("Alt+ArrowLeft").map(format), Ok("Alt+Left".into()));
+        assert_eq!(parse("Ctrl+Down").unwrap().vk, 0x28);
+    }
+
+    #[test]
+    fn the_recorder_takes_only_what_works_in_game() {
+        let check = |text: &str| check_recordable(parse(text).unwrap());
+        for ok in
+            ["Alt+Q", "Alt+W", "Ctrl+Shift+5", "Ctrl+Alt+Up", "F7", "Shift+F8", "Ctrl+F4", "Alt+F24", "Ctrl+Alt+F9"]
+        {
+            assert_eq!(check(ok), Ok(()), "{ok}");
+        }
+        assert_eq!(check("Win+Q"), Err(PolicyError::Win));
+        assert_eq!(check("Alt+Win+F7"), Err(PolicyError::Win));
+        assert_eq!(check("Shift+Q"), Err(PolicyError::NeedsAltOrCtrl));
+        assert_eq!(check("Shift+Left"), Err(PolicyError::NeedsAltOrCtrl));
+        assert_eq!(check("Alt+F4"), Err(PolicyError::AltF4));
+        assert_eq!(check("Alt+Shift+F4"), Err(PolicyError::AltF4));
+        assert_eq!(check("Ctrl+Alt+E"), Err(PolicyError::AltGr));
+        assert_eq!(check("Ctrl+Alt+Shift+2"), Err(PolicyError::AltGr));
+        assert!(parse("F12").is_err(), "F12 never gets this far");
+        for key in ["Alt+Space", "Alt+Tab", "Ctrl+Alt+Delete", "Ctrl+Numpad5", "Alt+`", "Ctrl+Insert"] {
+            assert_eq!(check(key), Err(PolicyError::Key), "{key}");
         }
     }
 

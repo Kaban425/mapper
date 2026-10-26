@@ -125,14 +125,25 @@ export const SOURCE_RULES = [
     pattern: /\bCommand::new\b|\bprocess::Command\b|\b(CreateProcess\w*|WinExec|ShellExecute\w*)\b/,
     allow: [SHELL_RS],
   },
-  { group: "process spawning", pattern: /\bCommand::new\s*\((?!\s*"explorer"\s*\))/ },
+  // Only %WINDIR%\explorer.exe by absolute path: a bare "explorer" is looked up in Mapper's own
+  // folder first. No extra arguments, environment or working directory either.
+  { group: "process spawning", pattern: /\bCommand::new\s*\((?!\s*explorer\(\)\?\s*\))/ },
+  { group: "process spawning", pattern: /\bCommand\s+as\b|\bprocess\s*::\s*\{|\brestart\s*\(/, ext: RUST },
+  {
+    group: "explorer arguments",
+    pattern: /\.(raw_arg|args|env|envs|env_clear|env_remove|current_dir)\s*\(/,
+    only: [SHELL_RS],
+  },
+  // Every registry API (RegDeleteTree, RegSaveKey, SHSetValue…) and key only in autostart.rs;
+  // machine-wide keys nowhere.
   {
     group: "registry",
     pattern:
-      /\bReg(OpenKey|CreateKey|SetValue|SetKeyValue|GetValue|QueryValue|DeleteValue|DeleteKey|EnumKey|EnumValue)\w*\b|\bwinreg\b/,
+      /\bReg(?!ister)[A-Z]\w*\b|\bSH(Reg\w+|(Get|Set|Delete|Copy|Query|Enum)(Value|Key)\w*)\b|\bwinreg\b|\bwindows_registry\b|\bHKEY_\w+/,
     ext: RUST,
     allow: [AUTOSTART_RS],
   },
+  { group: "registry", pattern: /\bHKEY_(LOCAL_MACHINE|CLASSES_ROOT|USERS|CURRENT_CONFIG)\b/, ext: RUST },
   {
     group: "network outside update/",
     pattern: /\b(ureq|reqwest|hyper|TcpStream|TcpListener|UdpSocket|WinHttp\w*|InternetOpen\w*|URLDownloadToFile\w*)\b|\bstd::net\b/,
@@ -167,6 +178,8 @@ export const SOURCE_RULES = [
   { group: "Tauri API module", pattern: /@tauri-apps\/(?!api\/(core|event)["'])/, ext: WEB },
   // invoke("plugin:window|...") reaches plugin commands by name, past any import rule.
   { group: "plugin commands from the web view", pattern: /["'`]plugin:/, ext: WEB },
+  // The raw IPC channels under the Tauri API (the per-window ACL still applies in Rust).
+  { group: "raw IPC", pattern: /\bchrome\s*\.\s*webview\b|\bipc\s*\.\s*postMessage\b/, ext: WEB },
   // The HUD only listens: events and types, no commands, no transport of its own.
   { group: "HUD reaches past events and types", pattern: /\bipc\/(?!(events|types)["'])/, ext: WEB, only: ["src/apps/hud/"] },
   {
@@ -256,6 +269,18 @@ export const REQUIRED = [
     why: "tauri's default `dynamic-acl` feature would allow capabilities added at run time",
   },
   {
+    file: SHELL_RS,
+    pattern: /\bCommand::new\s*\(/,
+    count: 2,
+    exact: true,
+    why: "explorer is started in exactly two places: a fixed link and Mapper's own folder",
+  },
+  {
+    file: SHELL_RS,
+    pattern: /GetSystemWindowsDirectoryW\(/,
+    why: "explorer.exe comes from the Windows folder, never from a search path",
+  },
+  {
     // A loop or a second call here would turn the one-off monitor choice into mouse polling.
     file: PLACEMENT_RS,
     pattern: /\bcursor_position\s*\(/,
@@ -287,6 +312,14 @@ export const CLAIMS = [
   /бан\S*\s+не\s+будет/i,
   /не\s+(детект|палит|банит|забанят|обнаружива)/i,
   /недетект|необнаружим/i,
+  // "Invisible to the game / anti-cheat": Mapper cannot know what the game or a driver sees.
+  /\binvisible\s+(to|for)\b|невидим\S*\s+для|\brisk[- ]free\b|(игре|античит\S*)\s+не\s+вид|не\s+вид\S*\s+(игре|античит)/i,
+  /(don't|do not|doesn't|never)\s+reach\s+the\s+game|not\s+(visible|seen)\s+(to|by)\s+(the\s+)?(game|anti-?cheat)/i,
+];
+
+// Release builds only: placeholders that must be replaced before publishing.
+export const RELEASE_PLACEHOLDERS = [
+  { file: SHELL_RS, pattern: /REPO:\s*&str\s*=\s*"OWNER\//, why: "the GitHub repository is still OWNER/mapper" },
 ];
 // A claim preceded by a negation within two words is the honest disclaimer the plan requires
 // ("Mapper не гарантирует безопасность аккаунта", "it is not safe to assume ...").

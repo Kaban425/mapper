@@ -9,6 +9,7 @@ import {
   EXTRA_FILES,
   IMPORT_RULES,
   NEGATION_BEFORE,
+  RELEASE_PLACEHOLDERS,
   REQUIRED,
   SOURCE_DIRS,
   SOURCE_EXT,
@@ -95,6 +96,14 @@ export function checkRequired(ctx) {
     }
   }
   ctx.ok(`required statements: ${present}/${REQUIRED.length} present`);
+}
+
+/** Release builds: no placeholder left (the repository name, Phase 5). */
+export function checkRelease(ctx) {
+  for (const { file, pattern, why } of RELEASE_PLACEHOLDERS) {
+    if (pattern.test(stripLineComments(ctx.read(file) ?? ""))) ctx.fail(`release ${file}: ${why}`);
+  }
+  ctx.ok(`release: ${RELEASE_PLACEHOLDERS.length} placeholder check(s)`);
 }
 
 /** A claim counts unless a negation stands right before it. */

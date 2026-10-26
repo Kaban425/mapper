@@ -9,7 +9,7 @@ use crate::app::overlay::result::MeasurementResult;
 use crate::app::overlay::{self, GridInput, OverlayError};
 use crate::app::windows::OVERLAY;
 use crate::config::validate::{MAX_CELL_PX, MIN_CELL_PX};
-use crate::config::{Point, StoreError};
+use crate::config::Point;
 use crate::logging;
 use crate::preset::Preset;
 
@@ -66,11 +66,7 @@ impl From<OverlayError> for IpcError {
         match err {
             OverlayError::Stale => IpcError::new(ErrorCode::StaleSession),
             OverlayError::Invalid => IpcError::new(ErrorCode::InvalidInput),
-            OverlayError::Store(StoreError::ReadOnly) => IpcError::new(ErrorCode::ReadOnly),
-            OverlayError::Store(StoreError::Io(io)) => {
-                logging::error("config", format!("saving a scale failed: {io}"));
-                IpcError::new(ErrorCode::Io)
-            }
+            OverlayError::Store(store) => store.into(),
         }
     }
 }

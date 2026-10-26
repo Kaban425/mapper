@@ -92,6 +92,77 @@ export function isMeasurementResult(v: unknown): boolean {
 
 const isSeqEvent = (v: unknown) => isObject(v) && isSeq(v.seq);
 
+const isNullable = (check: (v: unknown) => boolean) => (v: unknown) => v === null || check(v);
+const isArrayOf = (check: (v: unknown) => boolean, max: number) => (v: unknown) =>
+  Array.isArray(v) && v.length <= max && v.every(check);
+
+const isHotkeyStatus = (v: unknown) =>
+  isObject(v) && isString(v.accelerator, 32) && isBool(v.registered) && (v.error === undefined || v.error === "busy");
+
+const isMonitorMode = (v: unknown) =>
+  isObject(v) &&
+  (v.mode === "cursor" ||
+    (v.mode === "pinned" &&
+      isObject(v.pinned) &&
+      isString(v.pinned.name, 64) &&
+      [v.pinned.x, v.pinned.y, v.pinned.w, v.pinned.h].every(Number.isSafeInteger)));
+
+function isMainSettings(v: unknown): boolean {
+  return (
+    isSettings(v) &&
+    isObject(v) &&
+    isMonitorMode(v.monitor) &&
+    isBool(v.updatesEnabled) &&
+    isBool(v.firstRunDone) &&
+    Number.isSafeInteger(v.wizardStep) &&
+    isBool(v.riskAccepted) &&
+    isBool(v.trayHintShown) &&
+    isNumber(v.uiZoom)
+  );
+}
+
+const isDisplay = (v: unknown) =>
+  isObject(v) && isString(v.name, 64) && isString(v.key, 32) && isString(v.label, 64) && isBool(v.primary) && isBool(v.pinned);
+
+const isMonitorScales = (v: unknown) =>
+  isObject(v) &&
+  isString(v.key, 32) &&
+  isString(v.label, 64) &&
+  isBool(v.connected) &&
+  isBool(v.primary) &&
+  isNullable(isCalibration)(v.near) &&
+  isNullable(isCalibration)(v.far);
+
+const isOverlayNow = (v: unknown) => isObject(v) && isPreset(v.preset) && oneOf("measure", "calibrate")(v.start);
+
+const isLastMeasurement = (v: unknown) =>
+  isObject(v) && isMeasurementResult(v.result) && isString(v.monitorKey, 32) && isSeq(v.at);
+
+const isAutostart = (v: unknown) =>
+  isObject(v) && isBool(v.enabled) && isBool(v.approvedByWindows) && isBool(v.pathMatches);
+
+export function isAppSnapshot(v: unknown): boolean {
+  return (
+    isObject(v) &&
+    isSeq(v.revision) &&
+    isString(v.version, 32) &&
+    isBool(v.readOnly) &&
+    isArrayOf(oneOf("config-reset", "config-newer", "config-unreadable"), 8)(v.notices) &&
+    isMainSettings(v.settings) &&
+    isObject(v.hotkeys) &&
+    isHotkeyStatus(v.hotkeys.near) &&
+    isHotkeyStatus(v.hotkeys.far) &&
+    isBool(v.hotkeys.suspended) &&
+    isArrayOf(isDisplay, 32)(v.displays) &&
+    isArrayOf(isMonitorScales, 64)(v.scales) &&
+    isBool(v.pinnedMissing) &&
+    isNullable(isPreset)(v.armed) &&
+    isNullable(isOverlayNow)(v.overlay) &&
+    isNullable(isLastMeasurement)(v.lastMeasurement) &&
+    isAutostart(v.autostart)
+  );
+}
+
 export const guards: { readonly [K in EventName]: Guard<Events[K]> } = {
   "overlay-activating": isActivating as Guard<Events["overlay-activating"]>,
   "overlay-activated": ((v: unknown) =>
@@ -111,4 +182,6 @@ export const guards: { readonly [K in EventName]: Guard<Events[K]> } = {
     isNumber(v.opacity) &&
     ((v.kind === "result" && isMeasurementResult(v.result)) ||
       (v.kind === "notice" && v.code === "routeKept" && isString(v.hotkey, 32)))) as Guard<Events["hud-show"]>,
+  "snapshot-changed": isAppSnapshot as Guard<Events["snapshot-changed"]>,
+  "tray-hint": ((v: unknown) => isObject(v) && Object.keys(v).length === 0) as Guard<Events["tray-hint"]>,
 };

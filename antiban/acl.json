@@ -5,7 +5,18 @@
       "core:event:allow-listen",
       "core:event:allow-unlisten",
       "allow-log-line",
-      "allow-quit-app"
+      "allow-quit-app",
+      "allow-get-snapshot",
+      "allow-update-settings",
+      "allow-set-hotkey",
+      "allow-reset-hotkeys",
+      "allow-suspend-hotkeys",
+      "allow-arm-calibration",
+      "allow-reset-calibration",
+      "allow-set-autostart",
+      "allow-open-link",
+      "allow-open-folder",
+      "allow-hide-main-window"
     ],
     "overlay": [
       "core:event:allow-listen",

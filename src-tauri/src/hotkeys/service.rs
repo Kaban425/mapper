@@ -44,6 +44,14 @@ pub struct HotkeyStatus {
     pub error: Option<StatusError>,
 }
 
+/// Both presets and whether they are paused for the hotkey recorder (`AppSnapshot.hotkeys`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct HotkeysState {
+    pub near: HotkeyStatus,
+    pub far: HotkeyStatus,
+    pub suspended: bool,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HotkeyError {
     Busy,
@@ -89,7 +97,9 @@ impl<R: Registrar> Bindings<R> {
         if spec == self.wanted[preset.other().index()] {
             return Err(HotkeyError::Conflict);
         }
-        if spec == self.wanted[i] && (self.registered[i] || self.suspended) {
+        // The same combination: nothing to do while it works, or while paused and not known to be
+        // busy. A busy one is probed again, so "free" is never said of a combination that is not.
+        if spec == self.wanted[i] && (self.registered[i] || (self.suspended && !self.failed[i])) {
             return Ok(self.status(preset));
         }
         self.registrar.register(PROBE_ID, spec).map_err(|_| HotkeyError::Busy)?;
@@ -113,6 +123,28 @@ impl<R: Registrar> Bindings<R> {
         self.registered[i] = self.registrar.register(IDS[i], self.wanted[i]).is_ok();
         self.failed[i] = !self.registered[i];
         Err(HotkeyError::Busy)
+    }
+
+    /// Both presets at once ("Defaults"): one at a time could collide with the other's current
+    /// combination when the two are swapped. All or nothing: a busy one keeps the old pair.
+    pub fn set_both(&mut self, specs: [HotkeySpec; 2]) -> Result<(), HotkeyError> {
+        if specs[0] == specs[1] {
+            return Err(HotkeyError::Conflict);
+        }
+        let old = self.wanted;
+        self.unregister_all();
+        for spec in specs {
+            if self.registrar.register(PROBE_ID, spec).is_err() {
+                self.wanted = old;
+                self.register_all();
+                return Err(HotkeyError::Busy);
+            }
+            self.registrar.unregister(PROBE_ID);
+        }
+        self.wanted = specs;
+        self.failed = [false; 2];
+        self.register_all();
+        Ok(())
     }
 
     /// While a new hotkey is being recorded nothing of ours may react to keys.
@@ -159,13 +191,20 @@ impl<R: Registrar> Bindings<R> {
     pub fn statuses(&self) -> [HotkeyStatus; 2] {
         [self.status(Preset::Near), self.status(Preset::Far)]
     }
+
+    pub fn state(&self) -> HotkeysState {
+        let [near, far] = self.statuses();
+        HotkeysState { near, far, suspended: self.suspended }
+    }
 }
 
 enum Request {
     Set(Preset, HotkeySpec, Sender<Result<HotkeyStatus, HotkeyError>>),
-    Suspend(Sender<[HotkeyStatus; 2]>),
-    Resume(Sender<[HotkeyStatus; 2]>),
-    RetryFailed(Sender<[HotkeyStatus; 2]>),
+    SetBoth([HotkeySpec; 2], Sender<Result<(), HotkeyError>>),
+    Suspend(Sender<HotkeysState>),
+    Resume(Sender<HotkeysState>),
+    RetryFailed(Sender<HotkeysState>),
+    State(Sender<HotkeysState>),
 }
 
 pub struct HotkeyService {
@@ -193,16 +232,24 @@ impl HotkeyService {
         self.ask(|reply| Request::Set(preset, spec, reply)).unwrap_or(Err(HotkeyError::Unavailable))
     }
 
-    pub fn suspend(&self) -> Option<[HotkeyStatus; 2]> {
+    pub fn set_both(&self, specs: [HotkeySpec; 2]) -> Result<(), HotkeyError> {
+        self.ask(|reply| Request::SetBoth(specs, reply)).unwrap_or(Err(HotkeyError::Unavailable))
+    }
+
+    pub fn suspend(&self) -> Option<HotkeysState> {
         self.ask(Request::Suspend)
     }
 
-    pub fn resume(&self) -> Option<[HotkeyStatus; 2]> {
+    pub fn resume(&self) -> Option<HotkeysState> {
         self.ask(Request::Resume)
     }
 
-    pub fn retry_failed(&self) -> Option<[HotkeyStatus; 2]> {
+    pub fn retry_failed(&self) -> Option<HotkeysState> {
         self.ask(Request::RetryFailed)
+    }
+
+    pub fn state(&self) -> Option<HotkeysState> {
+        self.ask(Request::State)
     }
 
     fn ask<T>(&self, make: impl FnOnce(Sender<T>) -> Request) -> Option<T> {
@@ -255,15 +302,23 @@ fn handle<R: Registrar>(bindings: &mut Bindings<R>, request: Request) {
         Request::Set(preset, spec, reply) => {
             let _ = reply.send(bindings.set(preset, spec));
         }
+        Request::SetBoth(specs, reply) => {
+            let _ = reply.send(bindings.set_both(specs));
+        }
         Request::Suspend(reply) => {
             bindings.suspend();
-            let _ = reply.send(bindings.statuses());
+            let _ = reply.send(bindings.state());
         }
         Request::Resume(reply) => {
-            let _ = reply.send(bindings.resume());
+            bindings.resume();
+            let _ = reply.send(bindings.state());
         }
         Request::RetryFailed(reply) => {
-            let _ = reply.send(bindings.retry_failed());
+            bindings.retry_failed();
+            let _ = reply.send(bindings.state());
+        }
+        Request::State(reply) => {
+            let _ = reply.send(bindings.state());
         }
     }
 }
@@ -407,6 +462,37 @@ mod tests {
         b.suspend();
         let status = b.set(Preset::Far, key("Ctrl+F9")).unwrap();
         assert_eq!(status.error, None, "the probe showed Ctrl+F9 is free");
+    }
+
+    #[test]
+    fn a_busy_combination_recorded_again_is_probed_not_called_free() {
+        let mut b = bindings(&["Alt+W"]);
+        b.register_all();
+        b.suspend();
+        assert_eq!(b.set(Preset::Far, key("Alt+W")), Err(HotkeyError::Busy));
+        b.registrar.other_programs.clear();
+        assert_eq!(b.set(Preset::Far, key("Alt+W")).unwrap().error, None, "released meanwhile");
+    }
+
+    #[test]
+    fn defaults_come_back_even_when_swapped() {
+        let mut b = Bindings::new(FakeRegistrar::default(), [key("Alt+W"), key("Alt+Q")]);
+        b.register_all();
+        assert_eq!(b.set_both([key("Alt+Q"), key("Alt+W")]), Ok(()));
+        assert_eq!(b.registrar.held.get(&1), Some(&key("Alt+Q")));
+        assert_eq!(b.registrar.held.get(&2), Some(&key("Alt+W")));
+        assert!(!b.registrar.held.contains_key(&PROBE_ID));
+    }
+
+    #[test]
+    fn defaults_are_all_or_nothing() {
+        let mut b = Bindings::new(FakeRegistrar::default(), [key("F7"), key("F8")]);
+        b.register_all();
+        b.registrar.other_programs.insert(key("Alt+W"));
+        assert_eq!(b.set_both([key("Alt+Q"), key("Alt+W")]), Err(HotkeyError::Busy));
+        assert_eq!(b.registrar.held.get(&1), Some(&key("F7")), "the old pair is back");
+        assert_eq!(b.registrar.held.get(&2), Some(&key("F8")));
+        assert_eq!(b.set_both([key("F9"), key("F9")]), Err(HotkeyError::Conflict));
     }
 
     #[test]

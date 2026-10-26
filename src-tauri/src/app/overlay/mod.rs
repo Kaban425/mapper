@@ -8,15 +8,16 @@ pub mod placement;
 pub mod result;
 
 use std::sync::{Mutex, MutexGuard};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindow};
 
 use self::events::{Calibrations, MonitorInfo, OverlayActivating, OverlaySettings, Start};
-use self::phase::{Effect, Input, State};
+use self::phase::{Effect, Input, Phase, State};
 use self::placement::Placement;
 use self::result::MeasurementResult;
-use super::timers::Timers;
+use super::timers::{TimerId, Timers};
 use super::windows::{HUD, MAIN, OVERLAY};
 use crate::config::{Calibration, ConfigStore, MonitorKey, Point, StoreError};
 use crate::logging;
@@ -29,6 +30,32 @@ const CLICK_TO_START_TIMEOUT: Duration = Duration::from_secs(3);
 /// Upper bound for the UI to report that every key is released.
 const EXIT_TIMEOUT: Duration = Duration::from_millis(1000);
 const BLANK_TIMEOUT: Duration = Duration::from_millis(150);
+/// "Recalibrate" in the main window holds for the next press of that hotkey, at most this long.
+const ARM_TTL: Duration = Duration::from_secs(600);
+
+/// An open overlay session, as the main window's wizard follows it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+pub struct OverlayNow {
+    pub preset: Preset,
+    pub start: Start,
+}
+
+/// The last result the HUD showed, for the main window (memory only, US-10).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LastMeasurement {
+    pub result: MeasurementResult,
+    pub monitor_key: String,
+    /// Unix time, ms.
+    pub at: u64,
+}
+
+/// What the main window's snapshot needs from the overlay.
+pub struct OverlayView {
+    pub armed: Option<Preset>,
+    pub session: Option<OverlayNow>,
+    pub last: Option<LastMeasurement>,
+}
 
 #[derive(Default)]
 struct Inner {
@@ -43,6 +70,21 @@ struct Inner {
     result: Option<MeasurementResult>,
     /// The route was parked for this zoom: the HUD says how to continue instead of a result.
     route_kept_for: Option<Preset>,
+    /// Armed from the main window: the next press of this hotkey opens the scale setup.
+    armed: Option<(Preset, Instant)>,
+    /// Ends the arming after `ARM_TTL`; replaced by a newer arming.
+    arm_timer: Option<TimerId>,
+    /// How the open session started.
+    start: Option<Start>,
+    last: Option<LastMeasurement>,
+}
+
+fn fresh(armed: Option<(Preset, Instant)>) -> Option<Preset> {
+    armed.filter(|(_, at)| at.elapsed() < ARM_TTL).map(|(preset, _)| preset)
+}
+
+fn now_ms() -> u64 {
+    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| u64::try_from(d.as_millis()).unwrap_or(u64::MAX))
 }
 
 #[derive(Default)]
@@ -155,10 +197,10 @@ fn show(app: &AppHandle, seq: u64, preset: Preset) {
         return shown(app, seq, false);
     };
     let config = app.state::<ConfigStore>().get();
-    let (previous, from_tray) = {
+    let (previous, from_tray, armed) = {
         let overlay = app.state::<Overlay>();
         let inner = overlay.lock();
-        (inner.placement.clone(), inner.from_tray)
+        (inner.placement.clone(), inner.from_tray, fresh(inner.armed) == Some(preset))
     };
     let Some(placement) = placement::place(app, &win, &config.monitor, previous.as_ref()) else {
         return shown(app, seq, false);
@@ -167,7 +209,7 @@ fn show(app: &AppHandle, seq: u64, preset: Preset) {
         Foreground::Foreign(other) if !from_tray => Some(other),
         Foreground::Foreign(_) | Foreground::None | Foreground::Own(_) => None,
     };
-    let payload = activating(seq, preset, &placement, &config);
+    let payload = activating(seq, preset, &placement, &config, armed);
     {
         let overlay = app.state::<Overlay>();
         let mut inner = overlay.lock();
@@ -175,6 +217,10 @@ fn show(app: &AppHandle, seq: u64, preset: Preset) {
         inner.placement = Some(placement);
         inner.result = None;
         inner.route_kept_for = None;
+        inner.start = Some(payload.start);
+        if armed {
+            inner.armed = None;
+        }
     }
     let _ = win.set_ignore_cursor_events(false);
     let _ = win.set_always_on_top(true);
@@ -185,18 +231,27 @@ fn show(app: &AppHandle, seq: u64, preset: Preset) {
     let _ = win.show();
     window_style::set_tool_window(hwnd);
     shown(app, seq, true);
+    super::snapshot::publish_soon(app);
 }
 
 fn shown(app: &AppHandle, seq: u64, ok: bool) {
     dispatch(app, Input::Shown { seq, ok });
 }
 
-fn activating(seq: u64, preset: Preset, p: &Placement, config: &crate::config::Config) -> OverlayActivating {
+/// `armed`: the main window asked for the setup of this preset ("Recalibrate").
+fn activating(
+    seq: u64,
+    preset: Preset,
+    p: &Placement,
+    config: &crate::config::Config,
+    armed: bool,
+) -> OverlayActivating {
     let fitting = |preset| {
         config.calibration(&p.key, preset).filter(|c| c.fits(p.viewport.w, p.viewport.h, p.viewport.scale)).cloned()
     };
     let calibrations = Calibrations { near: fitting(Preset::Near), far: fitting(Preset::Far) };
-    let start = if calibrations_for(&calibrations, preset).is_some() { Start::Measure } else { Start::Calibrate };
+    let start =
+        if !armed && calibrations_for(&calibrations, preset).is_some() { Start::Measure } else { Start::Calibrate };
     OverlayActivating {
         seq,
         preset,
@@ -231,6 +286,7 @@ fn hide(app: &AppHandle, hud: bool) {
     let (result, route_kept_for, placement) = {
         let overlay = app.state::<Overlay>();
         let mut inner = overlay.lock();
+        inner.start = None;
         (inner.result.take(), inner.route_kept_for.take(), inner.placement.clone())
     };
     if let Some((win, _)) = window(app) {
@@ -243,8 +299,60 @@ fn hide(app: &AppHandle, hud: bool) {
     if let Some(to) = route_kept_for {
         super::hud::show_route_kept(app, to, placement.as_ref());
     } else if let Some(result) = result {
-        super::hud::show_result(app, result, placement.as_ref());
+        show_result(app, result, placement.as_ref());
     }
+    super::snapshot::publish_soon(app);
+}
+
+/// The HUD shows it, and the main window keeps it as the last measurement.
+fn show_result(app: &AppHandle, result: MeasurementResult, placement: Option<&Placement>) {
+    let monitor_key = placement.map(|p| p.key.to_string()).unwrap_or_default();
+    app.state::<Overlay>().lock().last = Some(LastMeasurement { result: result.clone(), monitor_key, at: now_ms() });
+    super::hud::show_result(app, result, placement);
+}
+
+/// The main window's "Recalibrate" (`Some`) or its cancel (`None`).
+pub fn arm(app: &AppHandle, preset: Option<Preset>) {
+    let at = Instant::now();
+    let previous = {
+        let overlay = app.state::<Overlay>();
+        let mut inner = overlay.lock();
+        inner.armed = preset.map(|p| (p, at));
+        inner.arm_timer.take()
+    };
+    if let Some(timer) = previous {
+        app.state::<Timers>().cancel(timer);
+    }
+    if preset.is_none() {
+        return;
+    }
+    let handle = app.clone();
+    let timer = app.state::<Timers>().schedule(ARM_TTL, move || {
+        let inner = handle.clone();
+        let _ = handle.run_on_main_thread(move || {
+            let expired = {
+                let overlay = inner.state::<Overlay>();
+                let mut state = overlay.lock();
+                let same = state.armed.is_some_and(|(_, armed_at)| armed_at == at);
+                if same {
+                    state.armed = None;
+                }
+                same
+            };
+            if expired {
+                super::snapshot::publish(&inner);
+            }
+        });
+    });
+    app.state::<Overlay>().lock().arm_timer = Some(timer);
+}
+
+pub fn view(app: &AppHandle) -> OverlayView {
+    let overlay = app.state::<Overlay>();
+    let inner = overlay.lock();
+    let open = inner.state.phase != Phase::Hidden;
+    let session = inner.start.filter(|_| open).map(|start| OverlayNow { preset: inner.state.preset, start });
+    OverlayView { armed: fresh(inner.armed), session, last: inner.last.clone() }
 }
 
 // ------------------------------------------------------------------ entry points
@@ -263,7 +371,7 @@ fn press(app: &AppHandle, preset: Preset, pressed_at: Instant, from_tray: bool) 
     {
         let overlay = app.state::<Overlay>();
         let mut inner = overlay.lock();
-        if inner.state.phase == phase::Phase::Hidden {
+        if inner.state.phase == Phase::Hidden {
             inner.pressed_at = Some(pressed_at);
             inner.from_tray = from_tray;
         }
@@ -305,7 +413,7 @@ pub fn submit_result(app: &AppHandle, seq: u64, result: MeasurementResult) -> Re
         if !inner.state.may_save(seq) {
             return Err(OverlayError::Stale);
         }
-        if inner.state.phase != phase::Phase::Hidden {
+        if inner.state.phase != Phase::Hidden {
             inner.result = Some(result);
             return Ok(());
         }
@@ -315,7 +423,8 @@ pub fn submit_result(app: &AppHandle, seq: u64, result: MeasurementResult) -> Re
         inner.placement.clone()
     };
     // The blank timeout came first and the overlay is hidden already: show the result now.
-    super::hud::show_result(app, result, placement.as_ref());
+    show_result(app, result, placement.as_ref());
+    super::snapshot::publish_soon(app);
     Ok(())
 }
 
@@ -348,6 +457,7 @@ pub fn save_calibration(app: &AppHandle, seq: u64, preset: Preset, scale: GridIn
         .update(|config| config.calibrations.entry(key).or_default().set(preset, Some(calibration)))
         .map_err(OverlayError::Store)?;
     logging::info("overlay", format!("{} scale saved for {label}", preset.as_str()));
+    super::snapshot::publish_soon(app);
     Ok(())
 }
 

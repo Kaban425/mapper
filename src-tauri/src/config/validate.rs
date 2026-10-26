@@ -3,7 +3,7 @@
 
 use super::{
     Calibration, Config, Hotkeys, MonitorMode, Range, UpdatePrefs, DACIA_KMH, MAX_MONITORS, PANEL_OPACITY,
-    SCHEMA_VERSION, SPRINT_MPS,
+    SCHEMA_VERSION, SPRINT_MPS, UI_ZOOM, WIZARD_STEPS,
 };
 use crate::hotkeys::spec;
 
@@ -28,6 +28,8 @@ pub fn validate(mut config: Config) -> Config {
     config.speeds.sprint_mps = clamp(config.speeds.sprint_mps, SPRINT_MPS);
     config.speeds.dacia_kmh = clamp(config.speeds.dacia_kmh, DACIA_KMH);
     config.panel_opacity = clamp(config.panel_opacity, PANEL_OPACITY);
+    config.ui_zoom = clamp(config.ui_zoom, UI_ZOOM);
+    config.wizard_step = config.wizard_step.clamp(1, WIZARD_STEPS);
     config.hotkeys = valid_hotkeys(&config.hotkeys);
     if let MonitorMode::Pinned { pinned } = &config.monitor {
         if pinned.name.chars().count() > MAX_NAME_CHARS || pinned.w == 0 || pinned.h == 0 {
@@ -131,7 +133,11 @@ mod tests {
         config.speeds.dacia_kmh = f64::NAN;
         config.panel_opacity = 0.1;
         config.schema_version = 0;
+        config.ui_zoom = 9.0;
+        config.wizard_step = 0;
         let fixed = validate(config);
+        assert_eq!(fixed.ui_zoom, UI_ZOOM.max);
+        assert_eq!(fixed.wizard_step, 1);
         assert_eq!(fixed.speeds.sprint_mps, SPRINT_MPS.max);
         assert_eq!(fixed.speeds.dacia_kmh, DACIA_KMH.default);
         assert_eq!(fixed.panel_opacity, PANEL_OPACITY.min);

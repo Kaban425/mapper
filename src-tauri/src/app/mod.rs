@@ -3,6 +3,7 @@
 pub mod hud;
 pub mod main_window;
 pub mod overlay;
+pub mod snapshot;
 pub mod timers;
 pub mod tray;
 pub mod windows;
@@ -15,7 +16,7 @@ use crate::config::{Config, ConfigStore, Language};
 use crate::hotkeys::{spec, HotkeyService, HotkeyStatus};
 use crate::logging;
 use crate::platform::win::single_instance::Instance;
-use crate::platform::win::{locale, raw_input, webview};
+use crate::platform::win::{autostart, locale, raw_input, webview};
 use timers::Timers;
 
 /// Start-up order (plan/eng.md §3). Any error before the hotkeys exist stops the app.
@@ -37,6 +38,7 @@ pub fn setup(app: &AppHandle, instance: Instance) -> Result<(), Box<dyn Error>> 
     let config = load_config(app)?;
     app.manage(overlay::Overlay::default());
     app.manage(hud::HudState::default());
+    app.manage(main_window::MainWindowState::default());
     windows::create_all(app)?;
     app.manage(Timers::start()?);
     let hotkeys = start_hotkeys(app, &config)?;
@@ -49,15 +51,36 @@ pub fn setup(app: &AppHandle, instance: Instance) -> Result<(), Box<dyn Error>> 
         registered(&hotkeys[1]),
     ));
     let russian = config.language == Language::Ru;
-    let tray = tray::build(app, russian, [hotkeys[0].accelerator.as_str(), hotkeys[1].accelerator.as_str()])?;
-    app.manage(tray);
+    let busy: Vec<&str> = hotkeys.iter().filter(|s| !s.registered).map(|s| s.accelerator.as_str()).collect();
+    let labels = tray::labels(russian, [hotkeys[0].accelerator.as_str(), hotkeys[1].accelerator.as_str()], &busy);
+    app.manage(tray::build(app, &labels)?);
+    repair_autostart();
     let handle = app.clone();
     instance.listen(move || {
         logging::info("app", "another copy was started: showing the main window");
         let inner = handle.clone();
         let _ = handle.run_on_main_thread(move || main_window::show(&inner));
     })?;
+    // Started with Windows: only the tray, unless something needs the player (plan/ux.md F-14).
+    // args_os: a non-Unicode argument must not stop Mapper at every logon.
+    let autostarted = std::env::args_os().skip(1).any(|arg| arg == autostart::FLAG);
+    let needs_window = !config.first_run_done || !busy.is_empty();
+    if !autostarted || needs_window {
+        main_window::show(app);
+    } else {
+        logging::info("app", "started with Windows: tray only");
+    }
     Ok(())
+}
+
+/// A moved portable exe would leave a "start with Windows" entry pointing nowhere.
+fn repair_autostart() {
+    let Ok(exe) = std::env::current_exe() else { return };
+    match autostart::repair(&exe) {
+        Ok(true) => logging::info("app", "start-with-Windows entry pointed at a missing exe: repaired"),
+        Ok(false) => {}
+        Err(err) => logging::warn("app", format!("start-with-Windows entry not repaired: {err}")),
+    }
 }
 
 fn log_monitors(app: &AppHandle) {
@@ -118,13 +141,16 @@ pub fn on_window_event(window: &Window, event: &WindowEvent) {
         WindowEvent::CloseRequested { api, .. } => {
             api.prevent_close();
             if window.label() == windows::MAIN {
-                main_window::hide(window.app_handle());
+                main_window::on_close_requested(window.app_handle());
             } else {
                 let _ = window.hide();
             }
         }
         WindowEvent::Focused(focused) if window.label() == windows::OVERLAY => {
             overlay::on_focus(window.app_handle(), *focused);
+        }
+        WindowEvent::Focused(false) if window.label() == windows::MAIN => {
+            main_window::on_focus_lost(window.app_handle());
         }
         _ => {}
     }

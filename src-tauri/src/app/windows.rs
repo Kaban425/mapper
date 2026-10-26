@@ -5,8 +5,9 @@ use std::error::Error;
 
 use tauri::webview::NewWindowResponse;
 use tauri::window::Color;
-use tauri::{AppHandle, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, Wry};
 
+use crate::config::{ConfigStore, UI_ZOOM};
 use crate::logging;
 use crate::platform::win::focus::OwnHwnd;
 use crate::platform::win::webview;
@@ -83,10 +84,22 @@ fn create_main(app: &AppHandle) -> Result<(), Box<dyn Error>> {
         .inner_size(960.0, 640.0)
         .min_inner_size(820.0, 560.0)
         .transparent(true)
+        // Shown at the end of start-up, or not at all when started with Windows.
+        .visible(false)
         .build()?;
     suppress_key_menu(&win, KeyMenu::PlainAlt)?;
     apply_main_backdrop(&win);
     webview::harden(&win)?;
+    // The player's Ctrl+plus / minus choice (the built-in zoom keys are off); cosmetic, so a
+    // failure is only logged.
+    let zoom = app.state::<ConfigStore>().get().ui_zoom;
+    if zoom != UI_ZOOM.default {
+        if let Err(err) = win.set_zoom(zoom) {
+            logging::warn("windows", format!("main: zoom not applied: {err}"));
+        }
+    }
+    // Hidden until shown: asleep like the other hidden windows (the tray-only start keeps it so).
+    webview::set_idle(&win, true);
     Ok(())
 }
 

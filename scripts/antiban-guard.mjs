@@ -5,6 +5,7 @@
 //
 //   node scripts/antiban-guard.mjs               sources, config, ACL, dependencies
 //   node scripts/antiban-guard.mjs --exe auto    + the release mapper.exe (or --exe <path>)
+//   node scripts/antiban-guard.mjs --release     + placeholders that must not ship (OWNER/mapper)
 
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,7 +14,7 @@ import { checkCargoLock, checkCargoManifest, checkCrateAllowlist, checkNativeFil
 import { createContext } from "./guard/context.mjs";
 import { checkAuditedVersions, checkCrates, checkNpm, lockVersions } from "./guard/deps.mjs";
 import { checkExe, readBaseline } from "./guard/exe.mjs";
-import { checkRequired, checkSources, checkWords } from "./guard/sources.mjs";
+import { checkRelease, checkRequired, checkSources, checkWords } from "./guard/sources.mjs";
 import { checkCapabilities, checkCommandSets, checkTauriConfig } from "./guard/tauri.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -39,6 +40,7 @@ function main() {
   checkAuditedVersions(ctx, baseline, versions);
   checkNpm(ctx);
   if (exeIndex >= 0) checkExe(ctx, args[exeIndex + 1] ?? "auto", baseline);
+  if (args.includes("--release")) checkRelease(ctx);
 
   for (const note of ctx.notes) console.log(`  ok  ${note}`);
   if (ctx.problems.length > 0) {

@@ -1,0 +1,266 @@
+/* Main window layout (plan/ux.md §2.5): sidebar 200 px, content margins 32, cards 24 apart.
+   The window shows Mica/Acrylic through the transparent page; a tint keeps text readable.
+   Like a desktop app, only the content scrolls: sidebar, wizard header and footer stay. */
+
+html.transparent body {
+  overflow: hidden;
+  background: var(--bg-tint);
+}
+
+body {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+#app {
+  min-height: 100vh;
+}
+
+.loading {
+  margin: 0;
+  padding: 32px;
+  color: var(--text-3);
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  height: 100vh;
+}
+
+.sidebar {
+  grid-row: 1 / span 2;
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 20px 12px 64px;
+  overflow-y: auto;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 8px;
+}
+
+.logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background:
+    linear-gradient(135deg, transparent 46%, var(--accent) 46%, var(--accent) 54%, transparent 54%),
+    var(--glass-2);
+  box-shadow: var(--sheen-top);
+}
+
+.name {
+  margin: 0;
+  font: 600 16px/20px var(--font-display);
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--text-3);
+  font: 400 12px/16px var(--font-ui);
+}
+
+.version {
+  margin: auto 8px 0;
+  color: var(--text-3);
+  font-size: 12px;
+}
+
+.quit {
+  grid-row: 2;
+  grid-column: 1;
+  padding: 12px;
+}
+
+.content {
+  grid-row: 1 / span 2;
+  grid-column: 2;
+  min-width: 0;
+  padding: 28px 32px 40px;
+  overflow-y: auto;
+}
+
+.screen {
+  display: grid;
+  gap: 24px;
+  max-width: 860px;
+}
+
+.screen h1 {
+  margin: 0;
+  font: 600 20px/28px var(--font-display);
+}
+
+/* Headings get the focus on a new step or screen for screen readers, not to show a ring. */
+.screen h1:focus,
+.screen h1:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.screen h2 {
+  margin: 0;
+  font: 600 16px/22px var(--font-ui);
+}
+
+.card {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 18px 20px;
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--r-md);
+  background: var(--glass-1);
+  box-shadow: var(--shadow-card), var(--sheen-top);
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+  gap: 24px;
+}
+
+.muted {
+  margin: 0;
+  color: var(--text-3);
+}
+
+.text {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+
+.banner {
+  margin: 0 0 20px;
+  padding: 10px 14px;
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--r-sm);
+  background: var(--glass-1);
+}
+
+.banner.error {
+  border-color: rgba(255, 122, 122, 0.4);
+  color: var(--danger);
+}
+
+.banner.warn {
+  border-color: rgba(255, 184, 112, 0.4);
+  color: var(--warn);
+}
+
+kbd.hotkey {
+  min-width: 0;
+  padding: 2px 8px;
+  border-color: rgba(242, 169, 0, 0.5);
+  color: var(--accent-text);
+  font-size: 13px;
+}
+
+.kicker-preset {
+  color: var(--accent-text);
+  font: 700 13px/16px var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+details {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 10px 0;
+}
+
+details summary {
+  cursor: pointer;
+  color: var(--text);
+}
+
+details p {
+  margin: 8px 0 0;
+  color: var(--text-2);
+}
+
+a.link,
+button.link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-text);
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+@media (max-width: 900px) {
+  .content {
+    padding: 24px;
+  }
+}
+
+/* A narrow window (or 200 % zoom: 960 px is 480 CSS px): the sidebar becomes a top bar, so
+   nothing scrolls sideways (plan/ux.md §7). */
+@media (max-width: 640px) {
+  .shell {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto;
+  }
+
+  .sidebar {
+    grid-row: 1;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 16px;
+    padding: 10px 12px;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .sidebar nav ul {
+    grid-auto-flow: column;
+  }
+
+  .sidebar .subtitle,
+  .sidebar .version {
+    display: none;
+  }
+
+  .content {
+    grid-row: 2;
+    grid-column: 1;
+    padding: 20px 16px;
+  }
+
+  .quit {
+    grid-row: 3;
+  }
+}
+
+@media (forced-colors: active) {
+  html.transparent body,
+  .sidebar,
+  .card {
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .card {
+    border-color: CanvasText;
+  }
+}

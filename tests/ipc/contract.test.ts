@@ -11,6 +11,7 @@ import overlayActivating from "../../src-tauri/tests/ipc-fixtures/overlay-activa
 import overlayBlankRequest from "../../src-tauri/tests/ipc-fixtures/overlay-blank-request.json";
 import overlayPreset from "../../src-tauri/tests/ipc-fixtures/overlay-preset.json";
 import saveCalibrationArgs from "../../src-tauri/tests/ipc-fixtures/save_calibration.args.json";
+import snapshotChanged from "../../src-tauri/tests/ipc-fixtures/snapshot-changed.json";
 import submitResultArgs from "../../src-tauri/tests/ipc-fixtures/submit_result.args.json";
 import { buildResult } from "../../src/lib/core/result";
 import type { EventName } from "../../src/lib/ipc/types";
@@ -24,6 +25,7 @@ const fixtures: Record<string, unknown> = {
   "overlay-blank-request": overlayBlankRequest,
   "overlay-preset": overlayPreset,
   "save_calibration.args": saveCalibrationArgs,
+  "snapshot-changed": snapshotChanged,
   "submit_result.args": submitResultArgs,
 };
 const fixture = (name: string): unknown => fixtures[name];
@@ -35,7 +37,14 @@ function keyPaths(value: unknown, prefix = ""): string[] {
 }
 
 describe("Rust → UI payloads", () => {
-  const events: EventName[] = ["overlay-activating", "overlay-activated", "overlay-preset", "overlay-blank-request", "hud-show"];
+  const events: EventName[] = [
+    "overlay-activating",
+    "overlay-activated",
+    "overlay-preset",
+    "overlay-blank-request",
+    "hud-show",
+    "snapshot-changed",
+  ];
 
   it.each(events)("%s from Rust passes its validator", (event) => {
     expect(guards[event](fixture(event))).toBe(true);
@@ -51,6 +60,11 @@ describe("Rust → UI payloads", () => {
     expect(guards["overlay-activating"]({ ...activating, preset: "mid" })).toBe(false);
     expect(guards["hud-show"]({ kind: "notice" })).toBe(false);
     expect(guards["overlay-blank-request"]({ seq: 1, reason: "other" })).toBe(false);
+    const snapshot = fixture("snapshot-changed") as Record<string, unknown>;
+    expect(guards["snapshot-changed"]({ ...snapshot, notices: ["config-gone"] })).toBe(false);
+    expect(guards["snapshot-changed"]({ ...snapshot, armed: "mid" })).toBe(false);
+    expect(guards["tray-hint"]({})).toBe(true);
+    expect(guards["tray-hint"]({ screen: "x" })).toBe(false);
   });
 });
 

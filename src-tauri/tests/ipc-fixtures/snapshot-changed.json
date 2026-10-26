@@ -1,0 +1,101 @@
+{
+  "revision": 7,
+  "version": "0.1.0",
+  "readOnly": false,
+  "notices": [
+    "config-reset"
+  ],
+  "settings": {
+    "language": "ru",
+    "hotkeys": {
+      "near": "Alt+Q",
+      "far": "Alt+W"
+    },
+    "speeds": {
+      "sprintMps": 6.3,
+      "daciaKmh": 100.0,
+      "daciaVerified": false
+    },
+    "panelOpacity": 0.65,
+    "monitor": {
+      "mode": "pinned",
+      "pinned": {
+        "name": "\\\\.\\DISPLAY2",
+        "x": 2560,
+        "y": -480,
+        "w": 1080,
+        "h": 1920
+      }
+    },
+    "updatesEnabled": true,
+    "firstRunDone": false,
+    "wizardStep": 1,
+    "riskAccepted": false,
+    "trayHintShown": false,
+    "uiZoom": 1.0
+  },
+  "hotkeys": {
+    "near": {
+      "accelerator": "Alt+Q",
+      "registered": true
+    },
+    "far": {
+      "accelerator": "Alt+W",
+      "registered": false,
+      "error": "busy"
+    },
+    "suspended": false
+  },
+  "displays": [
+    {
+      "name": "\\\\.\\DISPLAY1",
+      "key": "2560x1440@125",
+      "label": "2560×1440 · 125 %",
+      "primary": true,
+      "pinned": false
+    }
+  ],
+  "scales": [
+    {
+      "key": "2560x1440@125",
+      "label": "2560×1440 · 125 %",
+      "connected": true,
+      "primary": true,
+      "near": null,
+      "far": null
+    }
+  ],
+  "pinnedMissing": true,
+  "armed": "far",
+  "overlay": {
+    "preset": "near",
+    "start": "calibrate"
+  },
+  "lastMeasurement": {
+    "result": {
+      "preset": "near",
+      "totalM": 412.0,
+      "errorM": 2.2,
+      "segmentsM": [
+        412.0
+      ],
+      "dhM": 35.0,
+      "mortar": {
+        "status": "ok",
+        "sightM": 424.1
+      },
+      "travel": {
+        "sprintS": 65.4,
+        "daciaS": 14.8,
+        "daciaVerified": false
+      }
+    },
+    "monitorKey": "2560x1440@125",
+    "at": 1792919290104
+  },
+  "autostart": {
+    "enabled": true,
+    "approvedByWindows": false,
+    "pathMatches": true
+  }
+}

@@ -2,22 +2,14 @@
 
 import { checkDistanceM, looksTenTimesOff, metersOnScreen, metersPerPx } from "../../lib/core/calibration";
 import { MORTAR_DH_EXPERIMENTAL, PANEL_AVOID_PX } from "../../lib/core/constants";
-import {
-  formatDuration,
-  formatMeters,
-  formatNumber,
-  formatPx,
-  formatSpeedKmh,
-  formatSpeedMps,
-  meterUnit,
-} from "../../lib/core/format";
+import { formatDuration, formatMeters, formatPx, formatSpeedKmh, formatSpeedMps } from "../../lib/core/format";
 import { segmentPx } from "../../lib/core/measurement";
 import { currentResult, type Draft, type Session } from "../../lib/core/session";
 import type { Language, MeasurementResult, Point } from "../../lib/core/types";
 import { t } from "../../lib/i18n";
-import { cellsLabel, dhValue, distanceText, mortarLine, presetName, type Line } from "../../lib/view/result";
+import { cellsLabel, dhValue, distanceText, mortarLine, presetName, segmentsLine, type Line } from "../../lib/view/result";
 
-export { distanceText, mortarLine, presetName, type Line };
+export { distanceText, mortarLine, presetName, segmentsLine, type Line };
 
 /** Distance from the last point to the cursor while placing the next one. */
 export function liveMeters(s: Session): number | null {
@@ -34,13 +26,6 @@ export function dhLine(lang: Language, dhM: number): string {
   return `${value} — ${tail}`;
 }
 
-/** "2 отрезка: 640 + 600 м", only for a route of three points or more. */
-export function segmentsLine(lang: Language, result: MeasurementResult): string | null {
-  const n = result.segmentsM.length;
-  if (n < 2) return null;
-  const numbers = result.segmentsM.map((m) => formatNumber(Math.round(m), lang));
-  return t(lang, "ov.segments", { n, list: `${numbers.join(" + ")} ${meterUnit(lang)}` });
-}
 
 /** One row of the travel table: label · ≈ time · speed (and a note under the speed). */
 export interface TravelRow {

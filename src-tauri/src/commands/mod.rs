@@ -1,12 +1,14 @@
 //! App commands. Each one checks the calling window (second line of defence after the
 //! per-window capability ACL) and validates its input.
 
+pub mod main_window;
 pub mod overlay;
 
 use serde::Serialize;
 use tauri::{AppHandle, WebviewWindow};
 
 use crate::app::windows::{MAIN, OVERLAY};
+use crate::config::StoreError;
 use crate::logging::{self, Level, MAX_LINE_CHARS};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -19,6 +21,14 @@ pub enum ErrorCode {
     /// The config was written by a newer Mapper and is read-only.
     ReadOnly,
     Io,
+    /// Not a combination the recorder accepts (plan/ux.md §6.4).
+    HotkeyInvalid,
+    /// Another program holds the combination.
+    HotkeyBusy,
+    /// The other preset already uses it.
+    HotkeyConflict,
+    /// Mapper's path is too long for a Windows start-up entry.
+    PathTooLong,
 }
 
 /// Commands return only a code; the UI picks the message in its own language.
@@ -30,6 +40,18 @@ pub struct IpcError {
 impl IpcError {
     const fn new(code: ErrorCode) -> Self {
         Self { code }
+    }
+}
+
+impl From<StoreError> for IpcError {
+    fn from(err: StoreError) -> Self {
+        match err {
+            StoreError::ReadOnly => IpcError::new(ErrorCode::ReadOnly),
+            StoreError::Io(io) => {
+                logging::error("config", format!("saving failed: {io}"));
+                IpcError::new(ErrorCode::Io)
+            }
+        }
     }
 }
 

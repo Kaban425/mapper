@@ -35,6 +35,14 @@ pub enum Language {
 pub struct Config {
     pub schema_version: u32,
     pub first_run_done: bool,
+    /// The wizard step to reopen on (1..=4) until it is finished or skipped.
+    pub wizard_step: u8,
+    /// The risk text of wizard step 2 was acknowledged.
+    pub risk_accepted: bool,
+    /// The "Mapper keeps running in the tray" dialog was shown once.
+    pub tray_hint_shown: bool,
+    /// Main window zoom (Ctrl+plus / minus / 0).
+    pub ui_zoom: f64,
     pub language: Language,
     pub hotkeys: Hotkeys,
     pub speeds: Speeds,
@@ -78,6 +86,10 @@ impl Default for Config {
         Self {
             schema_version: SCHEMA_VERSION,
             first_run_done: false,
+            wizard_step: 1,
+            risk_accepted: false,
+            tray_hint_shown: false,
+            ui_zoom: UI_ZOOM.default,
             language: Language::default(),
             hotkeys: Hotkeys::default(),
             speeds: Speeds::default(),
@@ -112,6 +124,9 @@ pub const DACIA_KMH: Range = Range { min: 20.0, max: 200.0, default: 100.0 };
 pub const PANEL_OPACITY: Range = Range { min: 0.5, max: 0.94, default: 0.65 };
 /// Version 1's default, replaced by the migration to version 2.
 pub const PANEL_OPACITY_V1_DEFAULT: f64 = 0.86;
+/// 80–200 %: at 200 % the main window still has no horizontal scrolling (plan/ux.md §7).
+pub const UI_ZOOM: Range = Range { min: 0.8, max: 2.0, default: 1.0 };
+pub const WIZARD_STEPS: u8 = 4;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default)]

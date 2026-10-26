@@ -14,6 +14,8 @@ export interface MockApi {
   readonly calls: MockCall[];
   /** Commands that should reject, with the IpcError code to reject with. */
   readonly failures: Map<string, string>;
+  /** Answers of commands that return something (the main window snapshot). */
+  readonly handlers: Map<string, (args: Record<string, unknown> | undefined) => unknown>;
 }
 
 const listeners = new Map<string, Set<(payload: unknown) => void>>();
@@ -24,6 +26,7 @@ const api: MockApi = {
   },
   calls: [],
   failures: new Map(),
+  handlers: new Map(),
 };
 
 (globalThis as unknown as { __MAPPER_MOCK__: MockApi }).__MAPPER_MOCK__ = api;
@@ -32,7 +35,9 @@ export const transport: Transport = {
   invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
     api.calls.push({ command, args });
     const code = api.failures.get(command);
-    return code ? Promise.reject({ code }) : Promise.resolve(undefined as T);
+    if (code) return Promise.reject({ code });
+    const handler = api.handlers.get(command);
+    return Promise.resolve((handler ? handler(args) : undefined) as T);
   },
   listen(event, _label, handler) {
     const set = listeners.get(event) ?? new Set();

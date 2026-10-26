@@ -1,7 +1,7 @@
 // Result texts shared by the overlay panel and the HUD, built from numbers in the reader's
 // language (no text travels between windows).
 
-import { formatError, formatMeters, formatSignedMeters } from "../core/format";
+import { formatError, formatMeters, formatNumber, formatSignedMeters, meterUnit } from "../core/format";
 import type { CellMeters, Language, MeasurementResult, MortarStatus, Preset } from "../core/types";
 import { t, type Key } from "../i18n";
 
@@ -36,3 +36,11 @@ export const distanceText = (lang: Language, result: MeasurementResult): { value
 });
 
 export const dhValue = (lang: Language, dhM: number): string => `${t(lang, "ov.dh")} ${formatSignedMeters(dhM, lang)}`;
+
+/** "2 отрезка: 640 + 600 м" for a route; nothing for a single distance. */
+export function segmentsLine(lang: Language, result: MeasurementResult): string | null {
+  const n = result.segmentsM.length;
+  if (n < 2) return null;
+  const numbers = result.segmentsM.map((m) => formatNumber(Math.round(m), lang));
+  return t(lang, "ov.segments", { n, list: `${numbers.join(" + ")} ${meterUnit(lang)}` });
+}

@@ -24,10 +24,14 @@ function pluralForm(lang: Language, entry: Plural, n: number): string {
   return entry[category] ?? entry.other;
 }
 
-export function t(lang: Language, key: Key, params: Params = {}): string {
-  const entry = dictionaries[lang][key];
+/** One entry in `lang`: the plural form for `{n}`, then the placeholders filled in. */
+export function render(entry: Entry, lang: Language, params: Params = {}): string {
   const text = typeof entry === "string" ? entry : pluralForm(lang, entry, Number(params.n ?? 0));
   return text.replace(/\{(\w+)\}/g, (match, name: string) => (name in params ? String(params[name]) : match));
+}
+
+export function t(lang: Language, key: Key, params: Params = {}): string {
+  return render(dictionaries[lang][key], lang, params);
 }
 
 /** A translator bound to one language, for components. */
