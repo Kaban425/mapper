@@ -16,6 +16,7 @@ use crate::config::{Calibration, Config, ConfigStore, Hotkeys, Language, Monitor
 use crate::hotkeys::{HotkeyService, HotkeyStatus, HotkeysState};
 use crate::logging;
 use crate::platform::win::autostart::{self, AutostartStatus};
+use crate::update::{self, UpdateView};
 
 pub const CHANGED: &str = "snapshot-changed";
 /// `publish_soon` waits this long, so a burst of changes sends one snapshot.
@@ -47,6 +48,7 @@ pub struct AppSnapshot {
     pub overlay: Option<OverlayNow>,
     pub last_measurement: Option<LastMeasurement>,
     pub autostart: AutostartStatus,
+    pub update: UpdateView,
 }
 
 /// The config without bookkeeping fields (ETag, check times, raw calibrations).
@@ -183,6 +185,7 @@ pub fn build(app: &AppHandle) -> AppSnapshot {
         overlay: now.session,
         last_measurement: now.last,
         autostart: autostart::status(&exe),
+        update: update::view(app),
     }
 }
 
@@ -290,6 +293,13 @@ mod tests {
                 at: 1_792_919_290_104,
             }),
             autostart: AutostartStatus { enabled: true, approved_by_windows: false, path_matches: true },
+            update: UpdateView {
+                state: crate::update::UpdateState::Available,
+                latest: Some("v1.1.0".into()),
+                current: "0.1.0".into(),
+                checked_at: Some(1_792_919_290),
+                dismissed: false,
+            },
         };
         fixtures::check("snapshot-changed", &snapshot);
     }

@@ -1,9 +1,13 @@
-// Source rules: forbidden APIs per line, statements that must exist, and wording.
+// Source rules: forbidden APIs per line, statements that must exist, and wording. Rust goes
+// through the lexer, so comments anywhere are ignored and a statement inside one does not count;
+// other files skip whole-line `//` comments only (a web lexer would have to guess where regex
+// literals start, and a wrong guess hides code; the bundle in dist/ is checked separately).
 
 import { readdirSync } from "node:fs";
 import { extname, posix } from "node:path";
 
 import { isLineComment, matchesPath, stripLineComments, walk } from "./context.mjs";
+import { stripRustComments } from "./lexer.mjs";
 import {
   CLAIMS,
   EXTRA_FILES,
@@ -62,16 +66,25 @@ function checkImports(ctx, path, text) {
   }
 }
 
+/** Rust code with every comment blanked; null (and a problem) when it does not tokenize. */
+function rustCode(ctx, path, text) {
+  const { code, error } = stripRustComments(text);
+  if (error === null) return code;
+  ctx.fail(`source  ${path}  [could not tokenize: ${error}]  scanned as raw text`);
+  return null;
+}
+
 export function checkSources(ctx) {
   const files = sourceFiles(ctx);
   for (const path of files) {
     const rules = SOURCE_RULES.filter((rule) => applies(rule, path));
     const text = ctx.read(path);
     checkImports(ctx, path, stripLineComments(text));
-    text
+    const code = extname(path) === ".rs" ? rustCode(ctx, path, text) : null;
+    (code ?? text)
       .split("\n")
       .forEach((line, index) => {
-        if (isLineComment(line)) return;
+        if (code === null && isLineComment(line)) return;
         for (const rule of rules) {
           if (rule.pattern.test(line)) {
             ctx.fail(`source  ${path}:${index + 1}  [${rule.group}]  ${line.trim().slice(0, 160)}`);
@@ -82,16 +95,45 @@ export function checkSources(ctx) {
   ctx.ok(`sources: ${files.length} files scanned against ${SOURCE_RULES.length} rules`);
 }
 
+// Comment forms removed loosely, strings included, before counting the least number of matches:
+// that removes only too much, so whatever still matches is code. The most is counted with only
+// whole-line `//` comments removed (never code in web files), or over the raw text.
+const JS_COMMENTS = [/\/\*[\s\S]*?(?:\*\/|$)/g, /\/\/.*$/gm];
+const XML_COMMENTS = [/<!--[\s\S]*?(?:-->|$)/g];
+const LOOSE_COMMENTS = {
+  ...Object.fromEntries(WEB.map((ext) => [ext, JS_COMMENTS])),
+  ".svelte": [...JS_COMMENTS, ...XML_COMMENTS],
+  ".html": [...JS_COMMENTS, ...XML_COMMENTS],
+  ".xml": XML_COMMENTS,
+  ".toml": [/#.*$/gm],
+};
+
+const blank = (text) => text.replace(/[^\n]/g, " ");
+
+/** How often `pattern` occurs as code: exact in Rust, a `least..most` range elsewhere. */
+export function countCode(file, text, pattern) {
+  const count = (source) => source.match(new RegExp(pattern.source, `${pattern.flags}g`))?.length ?? 0;
+  const ext = extname(file);
+  if (ext === ".rs") {
+    const { code, error } = stripRustComments(text);
+    return error === null ? { least: count(code), most: count(code) } : { error };
+  }
+  const loose = (LOOSE_COMMENTS[ext] ?? []).reduce((source, comment) => source.replace(comment, blank), text);
+  return { least: count(loose), most: count(WEB_EXT.has(ext) ? stripLineComments(text) : text) };
+}
+
 export function checkRequired(ctx) {
   let present = 0;
   for (const rule of REQUIRED) {
-    const text = stripLineComments(ctx.read(rule.file) ?? "");
+    const found = countCode(rule.file, ctx.read(rule.file) ?? "", rule.pattern);
     const wanted = rule.count ?? 1;
-    const found = text.match(new RegExp(rule.pattern.source, `${rule.pattern.flags}g`))?.length ?? 0;
-    if (rule.exact ? found === wanted : found >= wanted) {
+    if (found.error) {
+      ctx.fail(`missing ${rule.file}: could not tokenize (${found.error}), ${rule.pattern.source} unverified`);
+    } else if (found.least >= wanted && (!rule.exact || found.most === wanted)) {
       present += 1;
     } else {
-      const times = wanted > 1 || rule.exact ? ` x${wanted}${rule.exact ? " exactly" : ""}, found ${found}` : "";
+      const seen = found.least === found.most ? `${found.least}` : `${found.least}..${found.most}`;
+      const times = wanted > 1 || rule.exact ? ` x${wanted}${rule.exact ? " exactly" : ""}, found ${seen}` : "";
       ctx.fail(`missing ${rule.file}: ${rule.pattern.source}${times} (${rule.why})`);
     }
   }

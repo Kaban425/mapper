@@ -6,6 +6,7 @@ import type { Language, Preset } from "../../lib/core/types";
 import type { MainKey } from "../../lib/i18n/main";
 import {
   armCalibration,
+  checkUpdateNow,
   describeError,
   getSnapshot,
   hideMainWindow,
@@ -34,6 +35,7 @@ export function errorKey(code: string): MainKey {
   if (code === "read_only") return "error.read_only";
   if (code === "io") return "error.io";
   if (code === "path_too_long") return "error.path_too_long";
+  if (code === "rate_limited") return "settings.updates.tooSoon";
   return "error.generic";
 }
 
@@ -123,6 +125,10 @@ export class MainStore {
 
   reset(monitorKey: string, preset: ResetTarget): Promise<IpcErrorCode | null> {
     return this.change("reset_calibration", () => resetCalibration(monitorKey, preset));
+  }
+
+  checkUpdate(): Promise<IpcErrorCode | null> {
+    return this.change("check_update_now", () => checkUpdateNow());
   }
 
   setAutostart(enabled: boolean): Promise<IpcErrorCode | null> {

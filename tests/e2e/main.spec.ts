@@ -205,6 +205,34 @@ test.describe("narrow window (200 % zoom of 960 × 640)", () => {
   });
 });
 
+test.describe("new version", () => {
+  test("Home offers it until Later; Settings says when Mapper last asked", async ({ page }) => {
+    const update = { state: "available" as const, latest: "v1.1.0", current: "0.1.0", checkedAt: 1_792_919_290, dismissed: false };
+    await openMain(page, homeSnapshot({ update }));
+    const banner = page.getByRole("region", { name: "Доступна версия 1.1.0 (у тебя 0.1.0)" });
+    await expect(banner).toBeVisible();
+    await banner.getByRole("button", { name: "Что нового и скачать" }).click();
+    expect((await calls(page, "open_link"))[0]?.args).toEqual({ link: "releases" });
+    await banner.getByRole("button", { name: "Позже" }).click();
+    await expect(banner).toHaveCount(0);
+    expect(await patches(page)).toEqual([{ dismissUpdate: "v1.1.0" }]);
+
+    await page.keyboard.press("Control+Digit2");
+    await expect(page.getByText(/^Последняя проверка: .+ — доступна версия 1\.1\.0$/)).toBeVisible();
+    await page.getByRole("button", { name: "Проверить сейчас" }).click();
+    await expect(page.getByText("Проверяем…")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Проверить сейчас" })).toBeDisabled();
+  });
+
+  test("a build without the repository address makes no request and says so", async ({ page }) => {
+    const update = { state: "noRepository" as const, latest: null, current: "0.1.0", checkedAt: null, dismissed: false };
+    await openMain(page, homeSnapshot({ update }));
+    await page.keyboard.press("Control+Digit2");
+    await expect(page.getByText("Адрес репозитория ещё не задан: эта сборка никуда не обращается")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Проверить сейчас" })).toHaveCount(0);
+  });
+});
+
 test.describe("window", () => {
   test("the first close shows the tray dialog; Got it hides to the tray", async ({ page }) => {
     await openMain(page, homeSnapshot());

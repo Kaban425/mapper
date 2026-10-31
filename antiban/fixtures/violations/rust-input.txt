@@ -1,0 +1,69 @@
+Planted violations for the anti-ban guard: node --test "scripts/guard/*.test.mjs" writes each
+case to its path in an empty tree, runs the source, required-statement and wording checks, and
+expects exactly the groups after "->" (separated by ";"), or nothing for "none". "missing" is a
+required statement that is absent, "words" a safety claim, "config" a bad installer step.
+
+Input, focus and the cursor (C-4, C-6).
+
+=== src-tauri/src/platform/win/sneaky.rs -> input injection
+pub fn press(inputs: &[INPUT]) {
+    unsafe { SendInput(inputs, size_of::<INPUT>() as i32) };
+}
+
+=== src-tauri/src/platform/win/sneaky.rs -> input injection
+use windows::Win32::UI::Input::KeyboardAndMouse::{keybd_event, KEYBDINPUT};
+
+=== src-tauri/src/platform/win/sneaky.rs -> messages to other windows
+unsafe { PostMessageW(Some(target), WM_KEYDOWN, WPARAM(0x41), LPARAM(0)) }?;
+
+=== src-tauri/src/platform/win/sneaky.rs -> hooks, raw input, key and mouse polling
+let hook = unsafe { SetWindowsHookExW(WH_KEYBOARD_LL, Some(on_key), None, 0) }?;
+
+=== src-tauri/src/platform/win/sneaky.rs -> hooks, raw input, key and mouse polling
+let held = unsafe { GetAsyncKeyState(VK_TAB.0 as i32) } < 0;
+
+=== src-tauri/src/platform/win/sneaky.rs -> hooks, raw input, key and mouse polling
+let mut point = POINT::default();
+unsafe { GetCursorPos(&mut point) }?;
+
+=== src-tauri/src/app/overlay/mod.rs -> cursor position outside placement.rs
+let at = window.cursor_position()?;
+
+=== src-tauri/src/app/overlay/placement.rs -> none
+let cursor = window.cursor_position()?;
+
+=== src-tauri/src/app/overlay/placement.rs -> missing
+loop {
+    let cursor = window.cursor_position()?;
+    let again = window.cursor_position()?;
+}
+
+=== src-tauri/src/platform/win/sneaky.rs -> hotkeys outside platform/win/hotkey.rs
+unsafe { RegisterHotKey(None, 7, MOD_NOREPEAT, VK_F9.0 as u32) }?;
+
+=== src-tauri/src/platform/win/sneaky.rs -> thread messages
+unsafe { PostThreadMessageW(thread, WM_QUIT, WPARAM(0), LPARAM(0)) }?;
+
+=== src-tauri/src/app/overlay/mod.rs -> tao paths that synthesise Alt
+overlay.set_focus()?;
+
+=== src-tauri/src/app/overlay/mod.rs -> tao paths that synthesise Alt
+tauri::WebviewWindow::set_focus(&overlay)?;
+
+=== src-tauri/src/app/overlay/mod.rs -> tao paths that synthesise Alt
+overlay.set_fullscreen(true)?;
+
+=== src/apps/main/sneaky.ts -> tao paths that synthesise Alt; plugin commands from the web view
+await invoke("plugin:window|set_focus");
+
+=== src-tauri/src/app/overlay/mod.rs -> cursor control
+overlay.set_cursor_grab(true)?;
+
+=== src-tauri/src/app/hud.rs -> HUD shown through tao
+hud.show()?;
+
+=== src-tauri/src/app/tray.rs -> menu items that synthesise Ctrl+key
+let copy = PredefinedMenuItem::copy(app, None)?;
+
+=== src-tauri/src/app/setup.rs -> raw input re-enabled
+app.set_device_event_filter(tauri::DeviceEventFilter::Never);

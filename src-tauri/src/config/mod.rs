@@ -18,6 +18,7 @@ pub use validate::validate;
 use crate::hotkeys::{DEFAULT_FAR, DEFAULT_NEAR};
 use crate::logging;
 use crate::preset::Preset;
+use crate::update::github::FetchError;
 
 pub const SCHEMA_VERSION: u32 = 2;
 pub const MAX_MONITORS: usize = 16;
@@ -188,13 +189,23 @@ pub struct UpdatePrefs {
     pub last_check_unix: i64,
     pub etag: Option<String>,
     pub latest: Option<String>,
+    /// "Later" on Home for this version: its banner stays away until a newer one appears.
+    pub dismissed: Option<String>,
+    /// How the last check failed: Settings says so after a restart too.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "lenient_failure")]
+    pub failed: Option<FetchError>,
 }
 
 impl Default for UpdatePrefs {
     fn default() -> Self {
         // On by default (author's answer О-6): once a day, said in the wizard and About.
-        Self { enabled: true, last_check_unix: 0, etag: None, latest: None }
+        Self { enabled: true, last_check_unix: 0, etag: None, latest: None, dismissed: None, failed: None }
     }
+}
+
+/// A failure this Mapper does not know reads as none, instead of setting the config aside.
+fn lenient_failure<'de, D: Deserializer<'de>>(d: D) -> Result<Option<FetchError>, D::Error> {
+    Ok(serde_json::from_value(Value::deserialize(d)?).ok())
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]

@@ -27,6 +27,7 @@ export function freshSnapshot(overrides: Partial<Snapshot> = {}): Snapshot {
     overlay: null,
     lastMeasurement: null,
     autostart: { enabled: false, approvedByWindows: true, pathMatches: false },
+    update: { state: "idle", latest: null, current: "0.1.0", checkedAt: null, dismissed: false },
     ...overrides,
   };
 }
@@ -65,6 +66,9 @@ export async function openMain(page: Page, snapshot: Snapshot): Promise<void> {
         if (patch[key] !== undefined) settings[key] = patch[key];
       }
       if (patch.monitor?.mode === "cursor") settings.monitor = { mode: "cursor" };
+      if (patch.dismissUpdate !== undefined && patch.dismissUpdate === state.update.latest) {
+        state.update = { ...state.update, dismissed: true };
+      }
       state = { ...state, settings: { ...settings, speeds } };
       return answer();
     });
@@ -73,6 +77,10 @@ export async function openMain(page: Page, snapshot: Snapshot): Promise<void> {
       const accelerator = args?.accelerator as string;
       state.settings = { ...state.settings, hotkeys: { ...state.settings.hotkeys, [preset]: accelerator } };
       state.hotkeys = { ...state.hotkeys, [preset]: { accelerator, registered: !state.hotkeys.suspended } };
+      return answer();
+    });
+    mock.handlers.set("check_update_now", () => {
+      state.update = { ...state.update, state: "checking" };
       return answer();
     });
     mock.handlers.set("reset_hotkeys", () => {

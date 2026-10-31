@@ -1,9 +1,10 @@
 //! "Start with Windows" for the current user: a value under HKCU\…\Run holding
 //! `"<exe>" --autostart`. No administrator rights, no plugin. The only file with registry calls
-//! (checked by the guard); the NSIS uninstaller removes the value (Phase 5).
+//! (checked by the guard); the NSIS uninstaller removes the value (`nsis/hooks.nsh`).
 //!
-//! Only a value in that exact form counts as Mapper's, and it is rewritten at start-up only when
-//! the exe it points to is gone (a moved portable copy) — never because another copy started.
+//! Only a value in that exact form counts as Mapper's. At start-up it is pointed at this exe when
+//! the one it names is gone (a moved portable copy), and put back when it is missing although the
+//! player has it on — never taken over because another copy started.
 
 use std::ffi::{c_void, OsString};
 use std::os::windows::ffi::{OsStrExt, OsStringExt};
@@ -103,14 +104,33 @@ pub fn set(exe: &Path, enabled: bool) -> Result<(), AutostartError> {
     write_wide(RUN, VALUE, &line).map_err(AutostartError::Os)
 }
 
-/// Mapper's entry pointing at an exe that no longer exists (the portable copy was moved) is
-/// pointed at this one. Another existing copy keeps its entry.
-pub fn repair(exe: &Path) -> Result<bool, AutostartError> {
-    let Some(target) = read_wide(RUN, VALUE).as_deref().and_then(own_target) else { return Ok(false) };
-    if same_path(&target, exe) || target.exists() {
-        return Ok(false);
+/// What start-up does with the entry.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Repair {
+    Keep,
+    /// Mapper's entry names an exe that no longer exists (a moved portable copy).
+    PointHere,
+    /// No entry although "start with Windows" is on: an upgrade through the installer runs the
+    /// old uninstaller first (Tauri's NSIS passes no `/UPDATE` then), and its hook removes it.
+    Restore,
+}
+
+/// `stored`: the Run value, None when there is none; `wanted`: the setting in Mapper. Another
+/// existing copy keeps its entry, and a value in another form is not Mapper's to touch.
+pub fn plan(stored: Option<&[u16]>, exe: &Path, wanted: bool) -> Repair {
+    match stored.map(own_target) {
+        None if wanted => Repair::Restore,
+        Some(Some(target)) if !same_path(&target, exe) && !target.exists() => Repair::PointHere,
+        _ => Repair::Keep,
     }
-    set(exe, true).map(|()| true)
+}
+
+pub fn repair(exe: &Path, wanted: bool) -> Result<Repair, AutostartError> {
+    let action = plan(read_wide(RUN, VALUE).as_deref(), exe, wanted);
+    if action != Repair::Keep {
+        set(exe, true)?;
+    }
+    Ok(action)
 }
 
 /// StartupApproved data: the first byte is even when the entry is allowed to run. No data
@@ -205,6 +225,21 @@ mod tests {
         }
         assert!(own_target(&wide(r#""D:\Games\MAPPER.EXE" --autostart"#)).is_some());
         assert!(same_path(Path::new(r"C:\A\mapper.exe"), Path::new(r"c:\a\MAPPER.exe")));
+    }
+
+    #[test]
+    fn start_up_repairs_only_mappers_own_entry() {
+        let here = Path::new(r"C:\Games\Mapper\mapper.exe");
+        assert_eq!(plan(None, here, true), Repair::Restore, "removed by an upgrade, still on in Mapper");
+        assert_eq!(plan(None, here, false), Repair::Keep);
+        assert_eq!(plan(Some(&command_line(here)), here, true), Repair::Keep);
+        let moved = Path::new(r"C:\no such folder\mapper.exe");
+        assert_eq!(plan(Some(&command_line(moved)), here, false), Repair::PointHere);
+        let other = std::env::temp_dir().join("mapper-autostart-test").join("mapper.exe");
+        std::fs::create_dir_all(other.parent().unwrap()).unwrap();
+        std::fs::write(&other, b"").unwrap();
+        assert_eq!(plan(Some(&command_line(&other)), here, true), Repair::Keep, "another copy that exists");
+        assert_eq!(plan(Some(&wide("other.exe --x")), here, true), Repair::Keep, "not Mapper's form");
     }
 
     #[test]

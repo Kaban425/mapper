@@ -1,0 +1,19 @@
+C-7: honest wording, no promise that Mapper is safe or undetected. Format: rust-input.txt.
+
+=== src/lib/i18n/main.en.ts -> words
+export const about = "Mapper is undetectable by anti-cheat.";
+
+=== src/lib/i18n/main.en.ts -> words
+export const about = "Mapper is invisible to the game.";
+
+=== src/lib/i18n/main.ru.ts -> words
+export const about = "Это безопасно: бана не будет.";
+
+=== README.md -> words
+Mapper is a ban-free ruler for the map.
+
+=== src/lib/i18n/main.en.ts -> none
+export const honest = "Mapper is not guaranteed safe.";
+
+=== src/lib/i18n/main.ru.ts -> none
+export const honest = "Никто не гарантирует безопасность.";

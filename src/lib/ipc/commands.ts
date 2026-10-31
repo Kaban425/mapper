@@ -18,7 +18,8 @@ export type IpcErrorCode =
   | "hotkey_invalid"
   | "hotkey_busy"
   | "hotkey_conflict"
-  | "path_too_long";
+  | "path_too_long"
+  | "rate_limited";
 
 export const logLine = (level: LogLevel, msg: string): Promise<void> => transport.invoke("log_line", { level, msg });
 
@@ -43,6 +44,9 @@ export const resetCalibration = (monitorKey: string, preset: ResetTarget): Promi
   transport.invoke("reset_calibration", { monitorKey, preset });
 
 export const setAutostart = (enabled: boolean): Promise<AppSnapshot> => transport.invoke("set_autostart", { enabled });
+
+/** "Check now": at most once a minute; the result arrives with `snapshot-changed`. */
+export const checkUpdateNow = (): Promise<AppSnapshot> => transport.invoke("check_update_now");
 
 export const openLink = (link: Link): Promise<void> => transport.invoke("open_link", { link });
 

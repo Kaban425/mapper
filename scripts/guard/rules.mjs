@@ -135,7 +135,7 @@ export const SOURCE_RULES = [
     only: [SHELL_RS],
   },
   // Every registry API (RegDeleteTree, RegSaveKey, SHSetValue…) and key only in autostart.rs;
-  // machine-wide keys nowhere.
+  // there only HKEY_CURRENT_USER, never another hive or a handle made from a number.
   {
     group: "registry",
     pattern:
@@ -143,7 +143,7 @@ export const SOURCE_RULES = [
     ext: RUST,
     allow: [AUTOSTART_RS],
   },
-  { group: "registry", pattern: /\bHKEY_(LOCAL_MACHINE|CLASSES_ROOT|USERS|CURRENT_CONFIG)\b/, ext: RUST },
+  { group: "registry", pattern: /\bHKEY_(?!CURRENT_USER\b)\w+|\bHKEY\s*\(/, ext: RUST },
   {
     group: "network outside update/",
     pattern: /\b(ureq|reqwest|hyper|TcpStream|TcpListener|UdpSocket|WinHttp\w*|InternetOpen\w*|URLDownloadToFile\w*)\b|\bstd::net\b/,
@@ -348,6 +348,35 @@ export const BANNED_NPM = [
   "node-global-key-listener",
   "screenshot-desktop",
   "@tauri-apps/plugin-",
+];
+
+// The built web pages (dist/**): the source groups again, over bundled npm code too.
+export const DIST_RULES = [
+  { group: "network from the web view", pattern: /\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|RTCPeerConnection|WebTransport)\b/ },
+  {
+    group: "dynamic code and raw HTML",
+    pattern: /\beval\s*\(|\bnew\s+Function\b|\b(innerHTML|outerHTML|insertAdjacentHTML|createContextualFragment)\b|\bdocument\s*\.\s*write(ln)?\b/,
+  },
+  { group: "web storage", pattern: /\b(localStorage|sessionStorage|indexedDB|cookieStore)\b|\bdocument\s*\.\s*cookie\b/ },
+  {
+    group: "browser device and screen access",
+    pattern:
+      /\b(mediaDevices|getGamepads|requestPointerLock|requestFullscreen|getDisplayMedia|getUserMedia|html2canvas)\b|\bnavigator\s*\.\s*(keyboard|hid|usb|serial|bluetooth)\b/,
+  },
+  { group: "raw IPC", pattern: /\bchrome\s*\.\s*webview\b|\bipc\s*\.\s*postMessage\b/ },
+  // @tauri-apps/api/event calls only these two core commands (core:event:allow-listen/unlisten).
+  { group: "plugin commands", pattern: /plugin:(?!event\|(listen|unlisten)\b)/ },
+  { group: "test transport", pattern: /__MAPPER_MOCK__/ },
+];
+
+// Exact snippets of bundled libraries that DIST_RULES would flag, and why they are harmless.
+// Minified names vary, so identifiers are `[\w$]+`; anything else in the bundle still fails.
+export const DIST_ALLOW = [
+  {
+    pattern: /\.innerHTML=[\w$]+\([\w$]+\.replaceAll\(`<!>`,`<!---->`\)\)/,
+    why: "Svelte's template parser: the static markup of Mapper's own components, no data",
+  },
+  { pattern: /!==`innerHTML`/, why: "Svelte's setter cache compares a property name; nothing is written" },
 ];
 
 // Functions the release exe must not import unless antiban/imports-baseline.txt explains why.

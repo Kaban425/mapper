@@ -4,7 +4,7 @@ import { looksTenTimesOff, metersOnScreen } from "../../lib/core/calibration";
 import { formatDuration, formatMeters, formatNumber, formatPx } from "../../lib/core/format";
 import type { GridScale, Language, Preset, Viewport } from "../../lib/core/types";
 import { tm } from "../../lib/i18n/main";
-import type { AppSnapshot, Calibration, LastMeasurement, MonitorScales } from "../../lib/ipc/types";
+import type { AppSnapshot, Calibration, LastMeasurement, MonitorScales, UpdateView } from "../../lib/ipc/types";
 import { cellsLabel, distanceText, mortarLine, presetName, segmentsLine } from "../../lib/view/result";
 
 export const PRESETS: readonly Preset[] = ["near", "far"];
@@ -114,6 +114,42 @@ export function lastLines(lang: Language, last: LastMeasurement): LastLines {
     mortar: mortar.text,
     mortarWarn: mortar.warn ?? false,
   };
+}
+
+/** "1.1.0": versions are shown without the tag's "v". */
+export const versionText = (tag: string): string => tag.replace(/^v/, "");
+
+/** The Home banner: a newer version the player has not put off, also while a later check fails. */
+export const updateOffered = (u: UpdateView): string | null =>
+  u.latest !== null && !u.dismissed ? versionText(u.latest) : null;
+
+/** Settings, under the switch: when Mapper last asked and what it heard. */
+export function updateLine(lang: Language, u: UpdateView): { readonly text: string; readonly warn: boolean } {
+  const when =
+    u.checkedAt === null
+      ? tm(lang, "settings.updates.never")
+      : tm(lang, "settings.updates.last", {
+          when: new Intl.DateTimeFormat(LOCALES[lang], { dateStyle: "medium", timeStyle: "short" }).format(new Date(u.checkedAt * 1000)),
+        });
+  switch (u.state) {
+    case "noRepository":
+      return { text: tm(lang, "settings.updates.noRepository"), warn: false };
+    case "checking":
+      return { text: tm(lang, "settings.updates.checking"), warn: false };
+    case "offline":
+      return { text: tm(lang, "settings.updates.offline"), warn: true };
+    case "rateLimited":
+      return { text: tm(lang, "settings.updates.rateLimited"), warn: true };
+    case "badResponse":
+      return { text: tm(lang, "settings.updates.badResponse"), warn: true };
+    case "available":
+      return { text: `${when} — ${tm(lang, "settings.updates.available", { v: versionText(u.latest ?? "") })}`, warn: false };
+    case "upToDate":
+      return { text: `${when} — ${tm(lang, "settings.updates.latest")}`, warn: false };
+    case "idle":
+    case "off":
+      return { text: when, warn: false };
+  }
 }
 
 // Panel transparency: the slider shows 0–100 % of the allowed range, 0 % being the densest glass.

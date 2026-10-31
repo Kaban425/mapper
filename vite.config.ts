@@ -20,6 +20,8 @@ export default defineConfig(({ mode }) => ({
     emptyOutDir: true,
     target: "es2023",
     sourcemap: false,
+    // WebView2 preloads modules itself; the polyfill would bring `fetch` into the bundle.
+    modulePreload: { polyfill: false },
     rolldownOptions: {
       input: {
         main: resolve(src, "main.html"),

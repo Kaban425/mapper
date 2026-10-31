@@ -157,6 +157,28 @@ export interface AutostartStatus {
   readonly pathMatches: boolean;
 }
 
+export type UpdateState =
+  | "noRepository"
+  | "off"
+  | "idle"
+  | "checking"
+  | "upToDate"
+  | "available"
+  | "offline"
+  | "rateLimited"
+  | "badResponse";
+
+export interface UpdateView {
+  readonly state: UpdateState;
+  /** "v1.1.0", only when newer than this Mapper. */
+  readonly latest: string | null;
+  readonly current: string;
+  /** Unix seconds of the last answer or failure. */
+  readonly checkedAt: number | null;
+  /** "Later" was pressed for this version. */
+  readonly dismissed: boolean;
+}
+
 export interface AppSnapshot {
   /** Grows with every snapshot Rust builds: an older one never replaces a newer one. */
   readonly revision: number;
@@ -172,6 +194,7 @@ export interface AppSnapshot {
   readonly overlay: OverlayNow | null;
   readonly lastMeasurement: LastMeasurement | null;
   readonly autostart: AutostartStatus;
+  readonly update: UpdateView;
 }
 
 /** `update_settings`: only the named fields change (Rust refuses unknown ones). */
@@ -187,6 +210,8 @@ export interface SettingsPatch {
   readonly wizardStep?: number;
   readonly riskAccepted?: boolean;
   readonly uiZoom?: number;
+  /** "Later" on the banner, with the version it showed (`v1.1.0`). */
+  readonly dismissUpdate?: string;
 }
 
 export type Link = "repo" | "releases" | "issues" | "license" | "security" | "risk";

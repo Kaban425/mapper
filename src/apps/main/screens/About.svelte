@@ -7,6 +7,7 @@
   import DoesList from "../DoesList.svelte";
   import RiskNotice from "../RiskNotice.svelte";
   import type { MainStore } from "../store.svelte";
+  import { versionText } from "../view";
 
   let { store, snapshot }: { store: MainStore; snapshot: AppSnapshot } = $props();
 
@@ -22,6 +23,9 @@
 <div class="screen">
   <h1 tabindex="-1">{tm(lang, "about.version", { v: snapshot.version })} · {tm(lang, "app.subtitle")}</h1>
   <p class="text">{tm(lang, "about.license")} {tm(lang, "about.affiliation")}</p>
+  {#if snapshot.update.latest}
+    <p class="text" role="status">{tm(lang, "about.update", { v: versionText(snapshot.update.latest) })}</p>
+  {/if}
   <div class="row">
     {#each links as item (item.link)}
       <Button onclick={() => store.open(item.link)}>{tm(lang, item.key)}</Button>

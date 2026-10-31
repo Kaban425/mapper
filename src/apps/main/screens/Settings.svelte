@@ -15,7 +15,7 @@
   import type { IpcErrorCode } from "../../../lib/ipc/commands";
   import HotkeyRow from "../HotkeyRow.svelte";
   import { errorKey, type MainStore } from "../store.svelte";
-  import { opacityFromPercent, transparencyPercent } from "../view";
+  import { opacityFromPercent, transparencyPercent, updateLine } from "../view";
 
   let { store, snapshot }: { store: MainStore; snapshot: AppSnapshot } = $props();
 
@@ -28,6 +28,7 @@
   const pinnedName = $derived(settings.monitor.mode === "pinned" ? settings.monitor.pinned.name : null);
   let preview = $state<number | null>(null);
   const transparency = $derived(preview ?? transparencyPercent(settings.panelOpacity));
+  const line = $derived(updateLine(lang, snapshot.update));
 
   const languages: readonly { value: Language; label: string }[] = [
     { value: "ru", label: "Русский" },
@@ -188,6 +189,14 @@
       description={tm(lang, "settings.updates.hint")}
       onchange={(updatesEnabled) => store.update({ updatesEnabled })}
     />
+    <div class="row update">
+      <p class="muted" class:warn={line.warn} role="status">{line.text}</p>
+      {#if snapshot.update.state !== "noRepository"}
+        <Button disabled={snapshot.update.state === "checking"} onclick={() => store.checkUpdate()}>
+          {tm(lang, "settings.updates.now")}
+        </Button>
+      {/if}
+    </div>
     <div class="row">
       <Button onclick={() => store.update({ firstRunDone: false, wizardStep: 1 })}>{tm(lang, "settings.rerunWizard")}</Button>
     </div>
@@ -205,6 +214,14 @@
 
   .note {
     max-width: 640px;
+  }
+
+  .update {
+    margin-left: 52px;
+  }
+
+  .warn {
+    color: var(--warn);
   }
 
   select {

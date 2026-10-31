@@ -1,0 +1,63 @@
+The web view: one door to Rust (src/lib/ipc), nothing leaves the machine, no raw HTML.
+Format: rust-input.txt.
+
+=== src/apps/main/sneaky.ts -> browser device access
+const pads = navigator.getGamepads();
+
+=== src/apps/main/sneaky.ts -> Tauri API outside lib/ipc/tauri.ts
+import { invoke } from "@tauri-apps/api/core";
+
+=== src/apps/main/sneaky.ts -> Tauri API outside lib/ipc/tauri.ts
+window.__TAURI_INTERNALS__.invoke("start_measuring");
+
+=== src/lib/ipc/tauri.ts -> listen without a target window
+const stop = await listen("snapshot", handler);
+
+=== src/lib/ipc/tauri.ts -> Tauri API module
+import { getCurrentWindow } from "@tauri-apps/api/window";
+
+=== src/apps/main/sneaky.ts -> transport outside lib/ipc
+import { transport } from "$transport";
+
+=== src/apps/main/sneaky.ts -> test transport outside the tests
+import { mock } from "../../lib/ipc/mock";
+
+=== src/apps/main/sneaky.ts -> test transport outside the tests
+const fake = (window as any).__MAPPER_MOCK__;
+
+=== src/apps/main/sneaky.ts -> Tauri transport imported directly (use $transport)
+import { transport } from "../../lib/ipc/tauri";
+
+=== src/apps/main/sneaky.ts -> plugin commands from the web view
+await invoke(`plugin:opener|open_path`, { path: "C:/Windows/System32/cmd.exe" });
+
+=== src/apps/main/sneaky.ts -> raw IPC
+window.chrome.webview.postMessage(JSON.stringify({ cmd: "quit" }));
+
+=== src/apps/hud/sneaky.ts -> HUD reaches past events and types; commands outside the main window and the overlay
+import { stopMeasuring } from "../../lib/ipc/commands";
+
+=== src/apps/hud/sneaky.ts -> HUD reaches past events and types
+import { snapshot } from "../../lib/ipc/./store";
+
+=== src/lib/components/sneaky.ts -> commands outside the main window and the overlay
+import { quit } from "../ipc/./commands";
+
+=== src/apps/main/sneaky.ts -> import outside src/
+import rules from "../../../scripts/guard/rules.mjs";
+
+=== src/apps/main/sneaky.ts -> network from the web view
+const reply = await fetch("https://example.invalid/track");
+
+=== src/apps/main/sneaky.ts -> web storage
+localStorage.setItem("route", JSON.stringify(route));
+
+=== src/apps/main/Sneaky.svelte -> dynamic code and raw HTML
+<p>{@html notes}</p>
+
+=== src/apps/main/sneaky.ts -> dynamic code and raw HTML
+const run = new Function("return 1");
+
+=== src/apps/main/sneaky.ts -> none
+// No fetch and no localStorage: the main window talks to Mapper only through $transport.
+import { snapshot } from "../../lib/ipc/events";

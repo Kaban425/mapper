@@ -7,7 +7,8 @@
     "webview2-com": "WebView2 settings Tauri does not expose: idle mode, permission denial, no browser shortcuts",
     "window-vibrancy": "Mica / Acrylic / Blur backdrops of Mapper's own windows",
     "windows": "Win32 calls of Mapper's own code (platform/win only); exact features pinned in deny.toml",
-    "windows-version": "Windows build number for the start-up log"
+    "windows-version": "Windows build number for the start-up log",
+    "ureq": "the update check: one HTTPS GET to GitHub Releases a day at most (src-tauri/src/update only, guard rule)"
   },
   "build-dependencies": {
     "tauri-build": "embeds the manifest and generates the per-window ACL"

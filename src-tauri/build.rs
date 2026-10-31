@@ -11,6 +11,7 @@ const COMMANDS: &[&str] = &[
     "arm_calibration",
     "reset_calibration",
     "set_autostart",
+    "check_update_now",
     "open_link",
     "open_folder",
     "hide_main_window",

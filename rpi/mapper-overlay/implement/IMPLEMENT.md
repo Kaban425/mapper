@@ -2,7 +2,7 @@
 
 **Feature**: mapper-overlay
 **Started**: 2026-10-20
-**Status**: IN_PROGRESS — Phases 1–3 PASS and committed; Phase 4 (system integration, full guard) next
+**Status**: IN_PROGRESS — Phases 1–4 PASS and committed; Phase 5 (release and docs) next
 
 ## Phase 1: Каркас и платформа — PASS (2026-10-21)
 
@@ -389,3 +389,128 @@ keep the `OWNER` placeholder until the author names the GitHub account.
 ### User validation
 - 2026-10-26: **PASS** — the author checked the main window: wizard, Home, Settings (hotkey recording,
   transparency, language), About, close to tray and start with Windows work. Commit approved.
+
+## Phase 4: Системная интеграция и полный guard — PASS (2026-11-01)
+
+Implemented directly (2026-10-27/28). T4.1 autostart, T4.3 tray-only start and
+T4.4 shell were done in Phase 3; T4.6 command sets and ACL since Phase 1. This phase adds the NSIS
+uninstall hook, the network update check, and the rest of the guard.
+
+### Deliverables
+- T4.1 `src-tauri/nsis/hooks.nsh`: `NSIS_HOOK_PREUNINSTALL` removes the HKCU Run value `dev.mapper.app`
+  (nothing else); `tauri.conf.json` `bundle.windows.nsis.installerHooks`. The guard allowlists the hook's
+  exact lines (the two macro lines and that `DeleteRegValue`; `;` comments), so no NSIS command slips in.
+- T4.2 `src-tauri/src/update/` (`version.rs` tags `vX.Y.Z`, `github.rs` the request, `mod.rs` state and
+  schedule): `ureq` =3.5.0 with only `rustls` (rustls with ring and the webpki-roots certificates; no
+  gzip, no native TLS; a proxy from `HTTPS_PROXY` / `ALL_PROXY` is honoured, TLS still ends at
+  api.github.com). GET `api.github.com/repos/REPO/releases/latest`, `If-None-Match` with the stored ETag
+  (visible ASCII, ≤ 256 chars), 10 s overall timeout, HTTPS only, body ≤ 1 MiB, drafts and
+  pre-releases ignored, only the tag is used. Automatic: 30 s after start, then an hourly tick that checks
+  only when 24 h have passed, the setting is on and the repository is set. Manual «Проверить сейчас»
+  (`check_update_now`, the 18th command) at most once a minute (`rate_limited` → «слишком часто»).
+  States `noRepository / off / idle / checking / upToDate / available / offline / rateLimited /
+  badResponse` with honest texts; last check, latest tag, ETag and the dismissed version kept in the
+  config (validated on load). Tray item «Доступна версия X…» (inserted / removed), a Home banner
+  («Что нового и скачать» / «Позже», remembered per version) and a line in About; every link opens the
+  fixed Releases page through `shell::open_link`, nothing from the response reaches a URL or explorer.
+  While `REPO` is the `OWNER/mapper` placeholder nothing is requested and Settings says «Адрес
+  репозитория ещё не задан: эта сборка никуда не обращается».
+- deny.toml: ISC (ring, untrusted, rustls-webpki) and CDLA-Permissive-2.0 (webpki-roots) added to the
+  licence list; `ureq` added to `antiban/crates-allowlist.json`; network code only in `update/`.
+- T4.5 guard (`scripts/guard/`):
+  - `lexer.mjs`: Rust comments (line, nested block) become spaces; strings, raw strings, byte/C strings
+    and char literals stay (lifetimes and labels are not chars); line numbers kept; an unterminated
+    string or comment is an error, the file is then scanned as raw text and the guard fails. Rust files
+    are scanned through it, so a comment anywhere hides nothing and costs no false alarm.
+  - Required statements: Rust counted through the lexer; other files as a range — at least the matches
+    left after a loose comment strip (strings included, so only real code counts), at most those with
+    comments kept — so a statement inside `/* */`, `<!-- -->` or a TOML `#` does not count, and
+    "exactly N" cannot be dodged.
+  - `dist.mjs`: the built pages `dist/**` against the web rule groups (network, dynamic code and raw
+    HTML, web storage, device and screen, raw IPC, plugin commands other than event listen/unlisten, the
+    test transport), over bundled npm code too. Two exact Svelte snippets are masked with a reason
+    (`DIST_ALLOW`); Vite's modulePreload polyfill is off (it brought `fetch` into the bundle; WebView2
+    preloads natively). `--dist` flag; `--exe` includes it.
+  - Registry: in `autostart.rs` only `HKEY_CURRENT_USER`, no other hive and no `HKEY(…)` made from a
+    number (the object-import list would not see that).
+  - **Deviation from the plan:** no TS scanner and no `.svelte` compilation for the source rules. A web
+    lexer has to guess where regex literals start, and a wrong guess hides code; web files keep the raw
+    scan with only whole-line `//` comments skipped (never code in JS/TS), which can only err towards a
+    false alarm, and the compiled `.svelte` output is checked in `dist/` instead.
+- T4.7 `guard:obj` (`obj.mjs`, `antiban/own-imports.txt`): `cargo rustc --profile guard-obj --lib --
+  --emit=obj`, `dumpbin /symbols`; every `__imp_` import of Mapper's own object file must be listed with
+  a reason — 56: 31 called by Mapper's code (file named), 25 from generic dependency code compiled into
+  the crate (tao, wry, muda, tray-icon, webview2-com, std). Banned names fail even when listed, stale
+  entries fail, and a canary (RegisterHotKey, SetForegroundWindow, GetRegisteredRawInputDevices) makes a
+  parse that finds nothing fail instead of pass. VS_VERSIONINFO and PE sections were checked since
+  Phase 1.
+- T4.8 self-test: `antiban/fixtures/violations/*.txt` — 100 planted cases in 6 files (input, game,
+  build, lexer tricks, web, wording; 13 of them must stay silent). Each case names its path and the exact
+  set of groups; `scripts/guard/fixtures.test.mjs` writes it into an empty tree, runs the source,
+  required-statement, wording and installer checks and compares. Every rule group must have a planted
+  case. Each lexer feature was mutation-checked: switching off chars, char escapes, string escapes, raw
+  strings or nesting fails a case. `lexer.test.mjs` covers the lexer itself.
+- Scripts and CI: `npm run guard:test` (`node --test "scripts/guard/*.test.mjs"`; a directory argument
+  no longer works in Node 24), `guard:obj`, `guard:all` (guard, its tests, object, exe). `checks.yml`
+  runs the guard tests after the guard, `--dist` after the web build and the object check before the
+  exe build, all through `node`.
+
+### Code review — NEEDS REVISION → fixed (2026-10-31)
+- HIGH an upgrade through the installer turned "start with Windows" off: Tauri's NSIS runs the old
+  uninstaller without `/UPDATE`, and its hook removes the Run value. Start-up now puts it back when
+  the setting is on in Mapper (not with a read-only config); `autostart::plan` is tested.
+- HIGH a config that cannot be saved repeated the "daily" check every hour and lost the answer: the
+  result is kept in memory for the run (`Updates.unsaved`) and counts like a saved one.
+- MEDIUM tray item and Home banner disagreed: both follow `latest` (a newer version found, also while
+  a later check fails); the tray is refreshed at start, so a tray-only start shows it too.
+- MEDIUM a failed check read as "you have the latest version" after a restart: the failure kind is
+  saved (`updates.failed`; an unknown value reads as none instead of setting the config aside).
+- MEDIUM tests: `due`, the state order, `classify`, `autostart::plan` and the lenient failure field
+  are tested; unit tests for `dist.mjs` / `obj.mjs` and the guard's network pin are still open.
+- LOW: "Later" sends the version it showed, so a version found meanwhile stays offered; connection
+  and TLS failures read as offline, 404 (no release yet) as nothing to offer; one ETag check
+  (`github::usable_etag`) for the config and the request; the banner is announced once
+  (`aria-labelledby` + `role="status"`); "Check now" counts only a request that starts; turning
+  checks on runs a due check at once; tray imports and text tidied.
+- Not changed: an offline start right after logon waits a day, as ux.md says.
+- Own review before: a last check "in the future" (clock set back) no longer stops the checks
+  (`due`); the banner stays while a later check fails.
+
+### Security review — no C-1..C-9 violation, no CRITICAL (2026-10-31)
+- MEDIUM the network code was not in the audited exe while `REPO` is the placeholder (the compiler
+  dropped it): `repository_set` goes through `std::hint::black_box`, so every build carries it and
+  the object and exe checks cover ureq and rustls now.
+- MEDIUM hourly checks when the config cannot be saved: fixed with the code review's HIGH.
+- LOW: `last_check_unix` above 9999-12-31 resets to 0 (Rust) and the snapshot validator caps it too
+  (a huge value blanked the window); no redirect is followed (`max_redirects(0)`, a 3xx is a bad
+  answer) and no proxy is taken from the environment (`proxy(None)`); the Settings hint now names
+  what GitHub sees (IP address, Mapper version, time of the check); body limit 1 MiB.
+- Not changed: computed property names in web code are not caught by the regex rules; the CSP
+  (`script-src 'self'`, `connect-src ipc:`) stays the barrier there.
+- **Open — guard limits (HIGH in the review, no violation in Mapper's code):** the source and
+  required-statement rules are a regex tripwire, and code written to dodge them on purpose can
+  still pass; the object check reads only `__imp_` imports; the `guard-obj` profile and build-time
+  `cfg` are not pinned. The barriers stay code review, the exe import audit (forbidden names and
+  the baseline), the per-window ACL and the CSP. To close before 1.0, together with a full list of
+  the exe's imports.
+
+### Verification after the reviews (2026-11-01)
+- Vitest 411/411; svelte-check 0/0; Playwright 102/102 (34 scenarios × 3 scales).
+- Rust: fmt, clippy `-D warnings`, 108/108 tests; cargo deny ok.
+- Guard passed (18 commands); its own tests 107/107 (100 planted cases); object: 56 Win32 imports,
+  all listed; dist: 8 files, 2 masked library snippets.
+- Release exe 4.5 MB (the network code is in it now): guard:exe passed — the same 11 baseline
+  imports, 349 by name, 12 by ordinal (all `WS2_32.dll`: Winsock through `std::net`; none from the
+  DLLs where ordinals are banned), standard sections. The built pages load every module without
+  Vite's preload polyfill (checked in a browser). Smoke run with `--autostart`: tray only, raw input
+  0, both hotkeys registered, no request while `REPO` is the placeholder (40 s, past the first-check
+  time). Copied to `test-build/`.
+- Installer (`npx tauri build`): `Mapper_0.1.0_x64-setup.exe`, 3.4 MiB. NSIS 3.13 and
+  nsis_tauri_utils 0.5.3 from tauri-apps with the hashes the CLI pins, the WebView2 bootstrapper
+  embedded; current-user install without administrator rights into `%LOCALAPPDATA%\Mapper` (the
+  folder can be changed), the uninstall hook included. The exe Tauri patches with the bundle type
+  passes guard:exe again (same imports and sections). Copied to `test-build/`.
+
+### User validation
+- 2026-11-01: **PASS** — the author installed Mapper with the installer, ran it, turned on start with
+  Windows and removed it through Settings → Apps: everything works. Commit approved.

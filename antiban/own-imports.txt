@@ -1,0 +1,67 @@
+# Win32 functions that Mapper's own object file (mapper_lib, built without LTO by
+# `npm run guard:obj`) may import. Any other name fails the guard: a new Win32 call in Mapper's
+# code needs a line here, with its reason, in the same PR. Names on the guard's forbidden list
+# never pass, whatever this file says, and an entry that is no longer imported must be removed.
+#
+# "ours" lines name the file in src-tauri/src/platform/win that makes the call. "dependency"
+# lines come from generic code of tao, wry, muda, tray-icon, webview2-com or std that Rust
+# instantiates inside mapper_lib; every one of them acts on Mapper's own windows and threads.
+#
+# Audited on mapper_lib 0.1.0 (Phase 4, 2026-10-28): 56 Win32 imports.
+
+AllowSetForegroundWindow    # ours: single_instance.rs lets the running copy bring its own window forward
+CloseHandle                 # ours: single_instance.rs closes its own mutex and event
+CreateEventW                # ours: single_instance.rs, the named event a second copy signals
+CreateMutexW                # ours: single_instance.rs, the named mutex that keeps one copy running
+DefSubclassProc             # ours: window_style.rs forwards messages of its own subclassed windows
+DwmSetWindowAttribute       # ours: window_style.rs, rounded corners of the HUD
+GetCurrentThreadId          # ours: hotkey.rs, the hotkey thread's own id for PostThreadMessage
+GetForegroundWindow         # ours: focus.rs, the window to hand the focus back to (never inspected)
+GetLastError                # ours: single_instance.rs, "already exists" of its own mutex
+GetMessageW                 # ours: hotkey.rs, the hotkey thread's message loop
+GetRegisteredRawInputDevices  # ours: raw_input.rs, the start-up check that no raw input is registered
+GetSystemWindowsDirectoryW  # ours: shell.rs, the absolute path of explorer.exe
+GetUserDefaultUILanguage    # ours: locale.rs, the first language
+GetWindowLongPtrW           # ours: window_style.rs reads its own window's extended style
+IsWindow                    # ours: focus.rs, the remembered window still exists before the focus goes back
+MessageBoxW                 # ours: dialog.rs, the fatal start-up message
+OpenEventW                  # ours: single_instance.rs, a second copy finds the first one's event
+PeekMessageW                # ours: hotkey.rs creates its thread's message queue
+PostThreadMessageW          # ours: hotkey.rs wakes and stops its own hotkey thread
+RegDeleteKeyValueW          # ours: autostart.rs removes Mapper's own HKCU Run value
+RegGetValueW                # ours: autostart.rs reads Mapper's own Run value and its StartupApproved flag
+RegSetKeyValueW             # ours: autostart.rs writes Mapper's own HKCU Run value
+RegisterHotKey              # ours: hotkey.rs, the two hotkeys (canary)
+SetEvent                    # ours: single_instance.rs, a second copy signals the first
+SetForegroundWindow         # ours: focus.rs, the overlay takes the focus and gives it back (canary)
+SetWindowLongPtrW           # ours: window_style.rs writes its own window's extended style
+SetWindowPos                # ours: window_style.rs, topmost and frame refresh of its own windows
+SetWindowSubclass           # ours: window_style.rs, Alt menu suppression on its own windows
+ShowWindow                  # ours: window_style.rs shows and hides the HUD without activating it
+UnregisterHotKey            # ours: hotkey.rs releases the hotkeys
+WaitForSingleObject         # ours: single_instance.rs waits on its own event
+AdjustWindowRect            # dependency: tao, tauri-runtime-wry size their own windows
+CoInitializeEx              # dependency: tao, wry initialise COM on their own threads
+CreateWindowExW             # dependency: tao, wry, tray-icon create Mapper's windows and the tray's hidden window
+DefWindowProcW              # dependency: tao, wry, tray-icon default handling of their own windows
+DestroyWindow               # dependency: tao, wry, tray-icon destroy their own windows
+DispatchMessageA            # dependency: webview2-com's message loop on its own thread
+DispatchMessageW            # dependency: tao, muda event loop of Mapper's windows
+EnumChildWindows            # dependency: wry walks the children of Mapper's own window to find its WebView2 host
+GetMessageA                 # dependency: webview2-com's message loop on its own thread
+GetModuleHandleW            # dependency: tauri, wry, the exe's own module for window classes
+GetUpdateRect               # dependency: tao paints its own windows
+LCIDToLocaleName            # dependency: wry, the WebView2 language
+MapVirtualKeyW              # dependency: tao translates key messages its own windows receive
+PostMessageW                # dependency: tao, wry, muda, tray-icon post to their own windows (event loop wake-ups)
+RedrawWindow                # dependency: tao, wry repaint their own windows
+RegisterClassExW            # dependency: tao, wry register their own window classes
+RegisterDragDrop            # dependency: tao, wry, the drop target of Mapper's own windows (disabled by Mapper)
+RevokeDragDrop              # dependency: tao, wry remove that drop target
+SHCreateMemStream           # dependency: wry, in-memory streams for WebView2 responses
+SendMessageW                # dependency: tao, wry, muda, tray-icon send to their own windows
+Shell_NotifyIconW           # dependency: tray-icon, Mapper's tray icon
+TranslateAcceleratorW       # dependency: tao, muda, menu accelerators of Mapper's own windows
+TranslateMessage            # dependency: tao, muda, webview2-com message loops
+ValidateRect                # dependency: tao paints its own windows
+WakeByAddressSingle         # dependency: std, thread parking

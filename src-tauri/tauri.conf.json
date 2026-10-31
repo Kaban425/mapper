@@ -32,7 +32,8 @@
       "webviewInstallMode": { "type": "embedBootstrapper" },
       "nsis": {
         "installMode": "currentUser",
-        "languages": ["English", "Russian"]
+        "languages": ["English", "Russian"],
+        "installerHooks": "nsis/hooks.nsh"
       }
     }
   }

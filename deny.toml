@@ -17,7 +17,9 @@ confidence-threshold = 0.93
 # Only what the graph needs; dual-licensed crates pass through MIT or Apache-2.0.
 # MPL-2.0 (file-level copyleft) comes from cssparser, selectors, dtoa-short and option-ext:
 # their sources stay unmodified and available on crates.io, which satisfies it in an MIT app.
-allow = ["Apache-2.0", "BSD-3-Clause", "MIT", "MPL-2.0", "Unicode-3.0", "Zlib"]
+# ISC (ring, rustls-webpki, untrusted: MIT-like) and CDLA-Permissive-2.0 (webpki-roots: the root
+# certificate data) come with the update check's TLS (Phase 4).
+allow = ["Apache-2.0", "BSD-3-Clause", "CDLA-Permissive-2.0", "ISC", "MIT", "MPL-2.0", "Unicode-3.0", "Zlib"]
 
 [bans]
 multiple-versions = "allow"

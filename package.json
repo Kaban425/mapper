@@ -14,6 +14,9 @@
     "test:coverage": "vitest run --coverage --passWithNoTests",
     "guard": "node scripts/antiban-guard.mjs",
     "guard:exe": "node scripts/antiban-guard.mjs --exe auto",
+    "guard:obj": "cargo rustc --manifest-path src-tauri/Cargo.toml --profile guard-obj --lib --locked --quiet -- --emit=obj && node scripts/antiban-guard.mjs --obj auto",
+    "guard:test": "node --test \"scripts/guard/*.test.mjs\"",
+    "guard:all": "node scripts/antiban-guard.mjs && npm run guard:test && npm run guard:obj && node scripts/antiban-guard.mjs --exe auto",
     "tauri": "tauri",
     "e2e": "playwright test"
   },

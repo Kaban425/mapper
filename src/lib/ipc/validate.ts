@@ -8,6 +8,8 @@ type Guard<T> = (value: unknown) => value is T;
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const isNumber = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isSeq = (v: unknown): v is number => Number.isSafeInteger(v) && (v as number) >= 0;
+/** Unix seconds up to 9999-12-31, the dates `Intl.DateTimeFormat` can show (Rust caps the same). */
+const isUnixTime = (v: unknown): v is number => isSeq(v) && v <= 253_402_300_799;
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
 const isString = (v: unknown, max = 256): v is string => typeof v === "string" && v.length <= max;
 const oneOf =
@@ -138,6 +140,14 @@ const isOverlayNow = (v: unknown) => isObject(v) && isPreset(v.preset) && oneOf(
 const isLastMeasurement = (v: unknown) =>
   isObject(v) && isMeasurementResult(v.result) && isString(v.monitorKey, 32) && isSeq(v.at);
 
+const isUpdateView = (v: unknown) =>
+  isObject(v) &&
+  oneOf("noRepository", "off", "idle", "checking", "upToDate", "available", "offline", "rateLimited", "badResponse")(v.state) &&
+  (v.latest === null || isString(v.latest, 32)) &&
+  isString(v.current, 32) &&
+  (v.checkedAt === null || isUnixTime(v.checkedAt)) &&
+  isBool(v.dismissed);
+
 const isAutostart = (v: unknown) =>
   isObject(v) && isBool(v.enabled) && isBool(v.approvedByWindows) && isBool(v.pathMatches);
 
@@ -159,7 +169,8 @@ export function isAppSnapshot(v: unknown): boolean {
     isNullable(isPreset)(v.armed) &&
     isNullable(isOverlayNow)(v.overlay) &&
     isNullable(isLastMeasurement)(v.lastMeasurement) &&
-    isAutostart(v.autostart)
+    isAutostart(v.autostart) &&
+    isUpdateView(v.update)
   );
 }
 

@@ -1,0 +1,45 @@
+The game, other processes, other windows and the screen (C-1..C-3, C-8). Format: rust-input.txt.
+
+=== src-tauri/src/platform/win/sneaky.rs -> other processes
+let game = unsafe { OpenProcess(PROCESS_VM_READ, false, pid) }?;
+unsafe { ReadProcessMemory(game, address, buffer.as_mut_ptr().cast(), buffer.len(), None) }?;
+
+=== src-tauri/src/platform/win/sneaky.rs -> other processes
+let snapshot = unsafe { CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) }?;
+
+=== src-tauri/src/platform/win/sneaky.rs -> foreign windows
+let game = unsafe { FindWindowW(w!("UnrealWindow"), PCWSTR::null()) }?;
+
+=== src-tauri/src/platform/win/sneaky.rs -> foreign windows
+let mut rect = RECT::default();
+unsafe { GetWindowRect(game, &mut rect) }?;
+
+=== src-tauri/src/app/sneaky.rs -> foreground window
+let active = window_style::GetForegroundWindow();
+
+=== src-tauri/src/platform/win/sneaky.rs -> single-instance primitives
+let lock = unsafe { CreateMutexW(None, true, w!("Global\\other")) }?;
+
+=== src-tauri/src/platform/win/sneaky.rs -> screen capture
+let screen = unsafe { GetDC(None) };
+unsafe { BitBlt(memory, 0, 0, width, height, Some(screen), 0, 0, SRCCOPY) }?;
+
+=== src-tauri/src/app/sneaky.rs -> game files and processes
+let config = home.join("AppData/Local/TslGame/Saved/Config/WindowsClient/GameUserSettings.ini");
+
+=== src-tauri/src/app/sneaky.rs -> game names
+const TITLE: &str = "PUBG: BATTLEGROUNDS";
+
+=== src/lib/i18n/main.en.ts -> none
+export const tip = "Set PUBG: BATTLEGROUNDS to borderless mode.";
+
+=== src-tauri/windows-app-manifest.xml -> elevation; missing
+<requestedExecutionLevel level="requireAdministrator" uiAccess="false" />
+
+=== src-tauri/windows-app-manifest.xml -> missing
+<!-- <requestedExecutionLevel level="asInvoker" uiAccess="false" /> -->
+<trustInfo xmlns="urn:schemas-microsoft-com:asm.v3" />
+
+=== src-tauri/windows-app-manifest.xml -> none
+<!-- C-8: no elevation, no UI access. -->
+<requestedExecutionLevel level="asInvoker" uiAccess="false" />

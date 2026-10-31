@@ -10,7 +10,7 @@ const CONF = "src-tauri/tauri.conf.json";
 const CAPABILITIES = "src-tauri/capabilities";
 const PERMISSIONS = "src-tauri/permissions";
 const ACL = "antiban/acl.json";
-const NSIS_HOOKS = "nsis/hooks.nsh";
+export const NSIS_HOOKS = "nsis/hooks.nsh";
 
 // Core permissions any window may ever get. This lives in code, not in acl.json: widening
 // it must be a reviewed change to the guard itself (security review, Phase 1).
@@ -67,16 +67,30 @@ export function checkTauriConfig(ctx) {
   ctx.ok(`config: ${CONF} keys, build commands and both CSPs checked, no platform overrides`);
 }
 
-// The uninstaller hook may only remove what Mapper wrote (its HKCU Run value).
-function checkInstallerHooks(ctx, hooks) {
+// The uninstaller hook may only remove what Mapper wrote (its HKCU Run value): besides `;`
+// comments, only these exact lines are allowed — an allowlist, so no NSIS command slips in.
+const NSIS_HOOK_LINES = [
+  /^!macro NSIS_HOOK_PREUNINSTALL$/,
+  /^!macroend$/,
+  /^DeleteRegValue HKCU "Software\\Microsoft\\Windows\\CurrentVersion\\Run" "dev\.mapper\.app"$/,
+];
+
+export function checkInstallerHooks(ctx, hooks) {
   if (hooks === undefined) return;
   if (hooks !== NSIS_HOOKS) {
     ctx.fail(`config  ${CONF}: installerHooks must be "${NSIS_HOOKS}"`);
     return;
   }
-  (ctx.read(`src-tauri/${NSIS_HOOKS}`) ?? "").split(/\r?\n/).forEach((line, index) => {
-    if (/\b(Exec\w*|nsExec|WriteReg\w*|CreateShortcut|File|ExecShell\w*)\b|!(system|execute)\b/i.test(line)) {
-      ctx.fail(`config  src-tauri/${NSIS_HOOKS}:${index + 1}  ${line.trim()}`);
+  const text = ctx.read(`src-tauri/${NSIS_HOOKS}`);
+  if (text === null) {
+    ctx.fail(`config  src-tauri/${NSIS_HOOKS} is missing`);
+    return;
+  }
+  text.split(/\r?\n/).forEach((raw, index) => {
+    const line = raw.trim();
+    if (line === "" || line.startsWith(";")) return;
+    if (!NSIS_HOOK_LINES.some((allowed) => allowed.test(line))) {
+      ctx.fail(`config  src-tauri/${NSIS_HOOKS}:${index + 1}  not an allowed uninstall step: ${line}`);
     }
   });
 }

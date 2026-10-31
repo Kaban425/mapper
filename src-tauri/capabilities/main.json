@@ -18,6 +18,7 @@
     "allow-arm-calibration",
     "allow-reset-calibration",
     "allow-set-autostart",
+    "allow-check-update-now",
     "allow-open-link",
     "allow-open-folder",
     "allow-hide-main-window"

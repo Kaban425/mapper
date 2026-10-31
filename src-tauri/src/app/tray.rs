@@ -3,6 +3,7 @@
 //! Texts follow the language and the hotkeys without rebuilding the menu.
 
 use std::error::Error;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent};
@@ -12,12 +13,15 @@ use super::main_window;
 use crate::config::{ConfigStore, Language};
 use crate::hotkeys::HotkeyService;
 use crate::logging;
+use crate::platform::win::shell::{self, Link};
 use crate::preset::Preset;
+use crate::update;
 
 const ID_OPEN: &str = "open";
 const ID_NEAR: &str = "measure-near";
 const ID_FAR: &str = "measure-far";
 const ID_QUIT: &str = "quit";
+const ID_UPDATE: &str = "update";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TrayTexts {
@@ -32,6 +36,8 @@ pub struct TrayTexts {
     pub ready: &'static str,
     /// Joins two busy hotkeys.
     pub and: &'static str,
+    /// The menu item shown only while a newer version exists.
+    pub update: &'static str,
 }
 
 const RU: TrayTexts = TrayTexts {
@@ -43,6 +49,7 @@ const RU: TrayTexts = TrayTexts {
     busy: "{hotkey} занят другой программой",
     ready: "{near} и {far} готовы",
     and: " и ",
+    update: "Доступна версия {version}…",
 };
 
 const EN: TrayTexts = TrayTexts {
@@ -54,6 +61,7 @@ const EN: TrayTexts = TrayTexts {
     busy: "{hotkey} is used by another program",
     ready: "{near} and {far} ready",
     and: " and ",
+    update: "Version {version} is available…",
 };
 
 pub fn texts(russian: bool) -> TrayTexts {
@@ -67,10 +75,14 @@ pub fn texts(russian: bool) -> TrayTexts {
 /// The tray and the items whose text changes; kept alive in app state.
 pub struct Tray {
     icon: TrayIcon<Wry>,
+    menu: Menu<Wry>,
     open: MenuItem<Wry>,
     near: MenuItem<Wry>,
     far: MenuItem<Wry>,
     quit: MenuItem<Wry>,
+    /// Inserted after "Open Mapper" only while a newer version exists (plan/ux.md §4.4).
+    update: MenuItem<Wry>,
+    update_shown: AtomicBool,
 }
 
 /// What the tray says: menu texts plus the tooltip, which names a busy hotkey.
@@ -106,6 +118,7 @@ pub fn build(app: &AppHandle, labels: &TrayLabels) -> Result<Tray, Box<dyn Error
     let near = MenuItem::with_id(app, ID_NEAR, &labels.near, true, None::<&str>)?;
     let far = MenuItem::with_id(app, ID_FAR, &labels.far, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, ID_QUIT, &labels.quit, true, None::<&str>)?;
+    let update = MenuItem::with_id(app, ID_UPDATE, "", true, None::<&str>)?;
     let sep1 = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(app, &[&open, &sep1, &near, &far, &sep2, &quit])?;
@@ -122,7 +135,7 @@ pub fn build(app: &AppHandle, labels: &TrayLabels) -> Result<Tray, Box<dyn Error
             }
         })
         .build(app)?;
-    Ok(Tray { icon, open, near, far, quit })
+    Ok(Tray { icon, menu, open, near, far, quit, update, update_shown: AtomicBool::new(false) })
 }
 
 /// After a language or hotkey change, or a hotkey that became free or busy.
@@ -146,6 +159,25 @@ pub fn refresh(app: &AppHandle) {
     if let Some(err) = results.into_iter().find_map(Result::err) {
         logging::warn("tray", format!("texts not updated: {err}"));
     }
+    refresh_update(&tray, config.language == Language::Ru, app);
+}
+
+/// The same rule as the Home banner: a newer version was found, also while a later check fails.
+fn refresh_update(tray: &Tray, russian: bool, app: &AppHandle) {
+    let text = update::view(app)
+        .latest
+        .map(|version| texts(russian).update.replace("{version}", version.trim_start_matches('v')));
+    let shown = tray.update_shown.load(Ordering::SeqCst);
+    let result = match (&text, shown) {
+        (Some(text), false) => tray.update.set_text(text).and_then(|()| tray.menu.insert(&tray.update, 1)),
+        (Some(text), true) => tray.update.set_text(text),
+        (None, true) => tray.menu.remove(&tray.update),
+        (None, false) => Ok(()),
+    };
+    match result {
+        Ok(()) => tray.update_shown.store(text.is_some(), Ordering::SeqCst),
+        Err(err) => logging::warn("tray", format!("update item not updated: {err}")),
+    }
 }
 
 fn on_menu(app: &AppHandle, event: MenuEvent) {
@@ -155,6 +187,12 @@ fn on_menu(app: &AppHandle, event: MenuEvent) {
         ID_NEAR => super::overlay::on_tray(app, Preset::Near),
         ID_FAR => super::overlay::on_tray(app, Preset::Far),
         ID_QUIT => super::quit(app),
+        // The constant releases page: Mapper itself downloads nothing.
+        ID_UPDATE => {
+            if let Err(err) = shell::open_link(Link::Releases) {
+                logging::warn("tray", format!("releases page not opened: {err}"));
+            }
+        }
         _ => {}
     }
 }
@@ -166,7 +204,7 @@ mod tests {
     #[test]
     fn both_languages_are_complete_and_distinct() {
         for t in [RU, EN] {
-            for text in [t.tooltip, t.open, t.near, t.far, t.quit, t.busy, t.ready] {
+            for text in [t.tooltip, t.open, t.near, t.far, t.quit, t.busy, t.ready, t.update] {
                 assert!(!text.trim().is_empty());
             }
             assert!(t.busy.contains("{hotkey}"));

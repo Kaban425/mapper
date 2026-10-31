@@ -9,6 +9,8 @@ import {
   monitorOption,
   opacityFromPercent,
   transparencyPercent,
+  updateLine,
+  updateOffered,
   visibleText,
   wizardReady,
   wizardStatus,
@@ -119,5 +121,30 @@ describe("panel transparency", () => {
     expect(opacityFromPercent(0)).toBe(0.94);
     expect(opacityFromPercent(100)).toBe(0.5);
     expect(transparencyPercent(opacityFromPercent(25))).toBe(25);
+  });
+});
+
+describe("update texts", () => {
+  const view = (over: Partial<AppSnapshot["update"]> = {}): AppSnapshot["update"] => ({
+    state: "upToDate",
+    latest: null,
+    current: "0.1.0",
+    checkedAt: 1_792_919_290,
+    dismissed: false,
+    ...over,
+  });
+
+  it("offer a newer version until Later", () => {
+    expect(updateOffered(view({ state: "available", latest: "v1.1.0" }))).toBe("1.1.0");
+    expect(updateOffered(view({ state: "available", latest: "v1.1.0", dismissed: true }))).toBeNull();
+    expect(updateOffered(view({ state: "offline", latest: "v1.1.0" })), "a later check failed").toBe("1.1.0");
+    expect(updateOffered(view())).toBeNull();
+  });
+
+  it("say when Mapper last asked and what it heard", () => {
+    expect(updateLine("ru", view()).text).toMatch(/^Последняя проверка: .+ — у тебя последняя версия$/);
+    expect(updateLine("en", view({ checkedAt: null, state: "idle" })).text).toBe("Not checked yet");
+    expect(updateLine("ru", view({ state: "offline" }))).toMatchObject({ warn: true });
+    expect(updateLine("en", view({ state: "noRepository" })).text).toContain("no network request");
   });
 });

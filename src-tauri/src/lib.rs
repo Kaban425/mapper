@@ -8,6 +8,7 @@ pub mod hotkeys;
 pub mod logging;
 pub mod platform;
 pub mod preset;
+pub mod update;
 
 use platform::win::dialog;
 use platform::win::single_instance::{self, Acquire};
@@ -39,6 +40,7 @@ pub fn run() {
             commands::main_window::arm_calibration,
             commands::main_window::reset_calibration,
             commands::main_window::set_autostart,
+            commands::main_window::check_update_now,
             commands::main_window::open_link,
             commands::main_window::open_folder,
             commands::main_window::hide_main_window,

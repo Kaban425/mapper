@@ -39,6 +39,7 @@ pub fn setup(app: &AppHandle, instance: Instance) -> Result<(), Box<dyn Error>> 
     app.manage(overlay::Overlay::default());
     app.manage(hud::HudState::default());
     app.manage(main_window::MainWindowState::default());
+    app.manage(crate::update::Updates::default());
     windows::create_all(app)?;
     app.manage(Timers::start()?);
     let hotkeys = start_hotkeys(app, &config)?;
@@ -54,13 +55,15 @@ pub fn setup(app: &AppHandle, instance: Instance) -> Result<(), Box<dyn Error>> 
     let busy: Vec<&str> = hotkeys.iter().filter(|s| !s.registered).map(|s| s.accelerator.as_str()).collect();
     let labels = tray::labels(russian, [hotkeys[0].accelerator.as_str(), hotkeys[1].accelerator.as_str()], &busy);
     app.manage(tray::build(app, &labels)?);
-    repair_autostart();
+    // A read-only config may still say "on" after the player turned it off in this Mapper.
+    repair_autostart(config.autostart && !app.state::<ConfigStore>().read_only());
     let handle = app.clone();
     instance.listen(move || {
         logging::info("app", "another copy was started: showing the main window");
         let inner = handle.clone();
         let _ = handle.run_on_main_thread(move || main_window::show(&inner));
     })?;
+    crate::update::start(app);
     // Started with Windows: only the tray, unless something needs the player (plan/ux.md F-14).
     // args_os: a non-Unicode argument must not stop Mapper at every logon.
     let autostarted = std::env::args_os().skip(1).any(|arg| arg == autostart::FLAG);
@@ -73,12 +76,21 @@ pub fn setup(app: &AppHandle, instance: Instance) -> Result<(), Box<dyn Error>> 
     Ok(())
 }
 
-/// A moved portable exe would leave a "start with Windows" entry pointing nowhere.
-fn repair_autostart() {
+/// A moved portable exe leaves the "start with Windows" entry pointing nowhere, and an upgrade
+/// through the installer removes it.
+fn repair_autostart(wanted: bool) {
     let Ok(exe) = std::env::current_exe() else { return };
-    match autostart::repair(&exe) {
-        Ok(true) => logging::info("app", "start-with-Windows entry pointed at a missing exe: repaired"),
-        Ok(false) => {}
+    match autostart::repair(&exe, wanted) {
+        Ok(autostart::Repair::Keep) => {}
+        Ok(autostart::Repair::PointHere) => {
+            logging::info("app", "start-with-Windows entry pointed at a missing exe: repaired");
+        }
+        Ok(autostart::Repair::Restore) => {
+            logging::info(
+                "app",
+                "start-with-Windows entry was missing although it is on (an installer upgrade removes it): restored",
+            );
+        }
         Err(err) => logging::warn("app", format!("start-with-Windows entry not repaired: {err}")),
     }
 }

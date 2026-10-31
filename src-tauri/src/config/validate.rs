@@ -6,6 +6,7 @@ use super::{
     SCHEMA_VERSION, SPRINT_MPS, UI_ZOOM, WIZARD_STEPS,
 };
 use crate::hotkeys::spec;
+use crate::update::github;
 
 pub const MIN_CELL_PX: f64 = 6.0;
 pub const MAX_CELL_PX: f64 = 8000.0;
@@ -13,7 +14,8 @@ const MAX_VIEWPORT_PX: f64 = 20_000.0;
 const MIN_VIEWPORT_PX: f64 = 100.0;
 const MAX_ORIGIN_PX: f64 = 100_000.0;
 const MAX_NAME_CHARS: usize = 64;
-const MAX_ETAG_CHARS: usize = 256;
+/// 9999-12-31: a later "last check" is no date JavaScript can show.
+const MAX_UNIX: i64 = 253_402_300_799;
 
 fn clamp(value: f64, range: Range) -> f64 {
     if value.is_finite() {
@@ -51,25 +53,25 @@ fn valid_hotkeys(hotkeys: &Hotkeys) -> Hotkeys {
 }
 
 fn valid_updates(mut updates: UpdatePrefs) -> UpdatePrefs {
-    updates.last_check_unix = updates.last_check_unix.max(0);
-    // An ETag goes back into a request header: visible ASCII only.
-    let bad_etag = |etag: &String| etag.len() > MAX_ETAG_CHARS || !etag.bytes().all(|b| (0x21..=0x7e).contains(&b));
-    if updates.etag.as_ref().is_some_and(bad_etag) {
+    if !(0..=MAX_UNIX).contains(&updates.last_check_unix) {
+        updates.last_check_unix = 0;
+    }
+    // An ETag goes back into a request header.
+    if !updates.etag.as_deref().is_some_and(github::usable_etag) {
         updates.etag = None;
     }
     if !updates.latest.as_deref().is_some_and(is_version_tag) {
         updates.latest = None;
+    }
+    if !updates.dismissed.as_deref().is_some_and(is_version_tag) {
+        updates.dismissed = None;
     }
     updates
 }
 
 /// `v1.2.3` (the update check stores only tags of this shape).
 fn is_version_tag(text: &str) -> bool {
-    let Some(rest) = text.strip_prefix('v') else { return false };
-    let parts: Vec<&str> = rest.split('.').collect();
-    text.len() <= 32
-        && parts.len() == 3
-        && parts.iter().all(|p| !p.is_empty() && p.len() <= 9 && p.bytes().all(|b| b.is_ascii_digit()))
+    crate::update::version::parse_tag(text).is_some()
 }
 
 pub fn is_valid_calibration(c: &Calibration) -> bool {
@@ -193,6 +195,9 @@ mod tests {
         config.updates.latest = Some("https://evil.example".into());
         config.updates.last_check_unix = -5;
         config.updates.etag = Some("\"abc\"\r\nX-Injected: 1".into());
+        let mut far = validate(Config::default());
+        far.updates.last_check_unix = 9_007_199_254_740_993;
+        assert_eq!(validate(far).updates.last_check_unix, 0, "not a date JavaScript can show");
         config.monitor = MonitorMode::Pinned { pinned: MonitorRef { name: "x".repeat(100), x: 0, y: 0, w: 1, h: 1 } };
         let fixed = validate(config);
         assert_eq!(fixed.updates.latest, None);

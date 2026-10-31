@@ -29,6 +29,8 @@ pub enum ErrorCode {
     HotkeyConflict,
     /// Mapper's path is too long for a Windows start-up entry.
     PathTooLong,
+    /// "Check now" again within a minute.
+    RateLimited,
 }
 
 /// Commands return only a code; the UI picks the message in its own language.

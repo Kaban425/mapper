@@ -97,5 +97,12 @@
     "enabled": true,
     "approvedByWindows": false,
     "pathMatches": true
+  },
+  "update": {
+    "state": "available",
+    "latest": "v1.1.0",
+    "current": "0.1.0",
+    "checkedAt": 1792919290,
+    "dismissed": false
   }
 }

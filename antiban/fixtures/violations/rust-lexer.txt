@@ -1,0 +1,71 @@
+Comment and string tricks: in Rust only comments are ignored, wherever they are; a string that
+hides a comment marker hides no code, and code that does not tokenize is scanned as raw text.
+Format: rust-input.txt.
+
+=== src-tauri/src/platform/win/sneaky.rs -> input injection
+let open = "/*"; unsafe { SendInput(inputs, size) }; let close = "*/";
+
+=== src-tauri/src/platform/win/sneaky.rs -> input injection
+let text = r#"a " // b"#; unsafe { SendInput(inputs, size) };
+
+=== src-tauri/src/platform/win/sneaky.rs -> input injection
+let quote = '"'; let open = "/*"; unsafe { SendInput(inputs, size) }; let close = "*/";
+
+=== src-tauri/src/platform/win/sneaky.rs -> input injection
+let quote = '\"'; let open = "/*"; unsafe { SendInput(inputs, size) }; let close = "*/";
+
+=== src-tauri/src/platform/win/sneaky.rs -> input injection
+fn pick<'a>(text: &'a str) -> &'a str { let open = "/*"; unsafe { SendInput(inputs, size) }; let close = "*/"; text }
+
+=== src-tauri/src/platform/win/sneaky.rs -> input injection
+let text = "a \" // b"; unsafe { SendInput(inputs, size) };
+
+=== src-tauri/src/platform/win/sneaky.rs -> input injection
+/* outer /* inner */ still the outer comment */ unsafe { SendInput(inputs, size) };
+
+=== src-tauri/src/app/sneaky.rs -> none
+let delay = 50; // never SendInput, keybd_event or GetCursorPos
+/// Unlike capture tools, Mapper calls no BitBlt and no FindWindowW.
+/* nested /* SendInput(); */ still the outer comment, so GetCursorPos is no code here */
+fn quiet<'a>(text: &'a str) -> &'a str { 'outer: loop { break 'outer text; } }
+
+=== src-tauri/src/app/sneaky.rs -> could not tokenize; game names
+let open = "PUBG
+
+=== src-tauri/src/lib.rs -> missing
+pub fn run() {
+    /* .device_event_filter(tauri::DeviceEventFilter::Always) */
+    tauri::Builder::default().run(tauri::generate_context!()).expect("run");
+}
+
+=== src-tauri/src/lib.rs -> missing
+pub fn run(filter: tauri::DeviceEventFilter) {
+    tauri::Builder::default()
+        .device_event_filter(tauri::DeviceEventFilter::Always)
+        .device_event_filter(filter)
+        .run(tauri::generate_context!())
+        .expect("run");
+}
+
+=== src-tauri/src/lib.rs -> none
+pub fn run() {
+    // .device_event_filter(tauri::DeviceEventFilter::Unfocused) would let tao register raw input.
+    tauri::Builder::default()
+        .device_event_filter(tauri::DeviceEventFilter::Always) /* the only call */
+        .run(tauri::generate_context!())
+        .expect("run");
+}
+
+=== vite.config.ts -> missing
+export default defineConfig(({ mode }) => ({
+  resolve: {
+    /* alias: { $transport: resolve(src, "lib/ipc", mode === "e2e" ? "mock.ts" : "tauri.ts") }, */
+    alias: { $transport: resolve(src, "lib/ipc", "mock.ts") },
+  },
+}));
+
+=== vite.config.ts -> none
+// `--mode e2e` picks the mock: mode === "e2e" ? "mock.ts" : "tauri.ts"
+export default defineConfig(({ mode }) => ({
+  resolve: { alias: { $transport: resolve(src, "lib/ipc", mode === "e2e" ? "mock.ts" : "tauri.ts") } },
+}));

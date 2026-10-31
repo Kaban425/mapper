@@ -18,6 +18,7 @@ use crate::logging;
 use crate::platform::win::autostart::{self, AutostartError};
 use crate::platform::win::shell::{self, Link, OwnFolder};
 use crate::preset::Preset;
+use crate::update::{self, CheckRefused};
 
 /// Longest accelerator text accepted ("Ctrl+Alt+Shift+PageDown" is 23).
 const MAX_ACCELERATOR_CHARS: usize = 32;
@@ -40,6 +41,8 @@ pub struct SettingsPatch {
     pub wizard_step: Option<u8>,
     pub risk_accepted: Option<bool>,
     pub ui_zoom: Option<f64>,
+    /// "Later" on the update banner, with the version it showed: only that one is put off.
+    pub dismiss_update: Option<String>,
 }
 
 /// A pinned monitor is named; Rust fills in its position and size from the connected ones.
@@ -77,6 +80,7 @@ impl SettingsPatch {
             && in_range(self.ui_zoom, UI_ZOOM)
             && self.wizard_step.is_none_or(|s| (1..=WIZARD_STEPS).contains(&s))
             && self.reset_speeds.is_none_or(|r| r)
+            && self.dismiss_update.as_deref().is_none_or(|tag| update::version::parse_tag(tag).is_some())
             && match &self.monitor {
                 Some(MonitorChoice::Pinned { name }) => {
                     !name.is_empty() && name.chars().count() <= MAX_DISPLAY_NAME_CHARS
@@ -127,6 +131,10 @@ impl SettingsPatch {
         if let Some(zoom) = self.ui_zoom {
             config.ui_zoom = zoom;
         }
+        // A check that finished meanwhile may have found a newer version: that one stays offered.
+        if let Some(tag) = self.dismiss_update.filter(|tag| config.updates.latest.as_ref() == Some(tag)) {
+            config.updates.dismissed = Some(tag);
+        }
     }
 }
 
@@ -170,6 +178,9 @@ pub fn update_settings(window: WebviewWindow, app: AppHandle, patch: SettingsPat
         return Err(invalid());
     }
     let config = store.update(|c| patch.apply(c, pinned))?;
+    if config.updates.enabled && !before.updates.enabled {
+        update::check_if_due(&app);
+    }
     if config.language != before.language {
         logging::info("main", format!("language: {:?}", config.language));
         tray::refresh(&app);
@@ -316,6 +327,17 @@ pub fn set_autostart(window: WebviewWindow, app: AppHandle, enabled: bool) -> Re
     Ok(snapshot::build(&app))
 }
 
+/// "Check now": at most once a minute; the answer comes with `snapshot-changed`.
+#[tauri::command]
+pub fn check_update_now(window: WebviewWindow, app: AppHandle) -> Result<AppSnapshot, IpcError> {
+    expect_window(&window, &[MAIN])?;
+    update::check_now(&app).map_err(|refused| match refused {
+        CheckRefused::NoRepository => IpcError::new(ErrorCode::NotAllowed),
+        CheckRefused::TooSoon => IpcError::new(ErrorCode::RateLimited),
+    })?;
+    Ok(snapshot::build(&app))
+}
+
 #[tauri::command]
 pub fn open_link(window: WebviewWindow, link: Link) -> Result<(), IpcError> {
     expect_window(&window, &[MAIN])?;
@@ -360,6 +382,11 @@ mod tests {
         assert_eq!(config.panel_opacity, PANEL_OPACITY.default);
         patch(r#"{"resetSpeeds":true}"#).apply(&mut config, None);
         assert_eq!(config.speeds, Speeds::default());
+        config.updates.latest = Some("v1.1.0".into());
+        patch(r#"{"dismissUpdate":"v1.0.9"}"#).apply(&mut config, None);
+        assert_eq!(config.updates.dismissed, None, "not the version found now");
+        patch(r#"{"dismissUpdate":"v1.1.0"}"#).apply(&mut config, None);
+        assert_eq!(config.updates.dismissed.as_deref(), Some("v1.1.0"));
     }
 
     #[test]
@@ -372,6 +399,7 @@ mod tests {
             r#"{"wizardStep":5}"#,
             r#"{"wizardStep":0}"#,
             r#"{"resetSpeeds":false}"#,
+            r#"{"dismissUpdate":"latest"}"#,
             r#"{"monitor":{"mode":"pinned","name":""}}"#,
         ] {
             assert!(!patch(bad).is_valid(), "{bad}");

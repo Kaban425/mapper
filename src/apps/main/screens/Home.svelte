@@ -9,7 +9,7 @@
   import { presetName } from "../../../lib/view/result";
   import PresetCard from "../PresetCard.svelte";
   import type { MainStore } from "../store.svelte";
-  import { defaultMonitorKey, lastLines, monitorOption, PRESETS, scalesFor } from "../view";
+  import { defaultMonitorKey, lastLines, monitorOption, PRESETS, scalesFor, updateOffered } from "../view";
 
   let { store, snapshot }: { store: MainStore; snapshot: AppSnapshot } = $props();
 
@@ -22,6 +22,9 @@
   const pinnedKey = $derived(snapshot.displays.find((d) => d.pinned)?.key ?? null);
   const last = $derived(snapshot.lastMeasurement ? lastLines(lang, snapshot.lastMeasurement) : null);
   let resetting = $state<Preset | null>(null);
+  const offered = $derived(updateOffered(snapshot.update));
+  // "Later" puts off this version only: one found meanwhile is still offered.
+  const offeredTag = $derived(snapshot.update.latest);
 
   async function confirmReset(): Promise<void> {
     const preset = resetting;
@@ -39,6 +42,16 @@
 
 <div class="screen">
   <h1 tabindex="-1">{tm(lang, "home.title")}</h1>
+
+  {#if offered}
+    <section class="banner info" aria-labelledby="update-banner">
+      <span id="update-banner" role="status">{tm(lang, "update.banner", { v: offered, cur: snapshot.update.current })}</span>
+      <span class="actions">
+        <Button onclick={() => store.open("releases")}>{tm(lang, "update.open")}</Button>
+        <Button variant="ghost" onclick={() => offeredTag && store.update({ dismissUpdate: offeredTag })}>{tm(lang, "update.later")}</Button>
+      </span>
+    </section>
+  {/if}
 
   {#each snapshot.notices as notice (notice)}
     <p class="banner warn" role="status">{tm(lang, `notice.${notice}`)}</p>
@@ -97,6 +110,21 @@
 {/if}
 
 <style>
+  .info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin: 0;
+    border-color: rgba(255, 197, 61, 0.35);
+  }
+
+  .info .actions {
+    display: flex;
+    gap: 8px;
+  }
+
   select {
     height: 32px;
     padding: 0 10px;

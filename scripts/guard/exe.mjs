@@ -5,7 +5,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 
-import { walk } from "./context.mjs";
+import { checkDist } from "./dist.mjs";
 import { EXE_NAME, FORBIDDEN_IMPORTS, NO_ORDINAL_DLLS, PE_SECTIONS } from "./rules.mjs";
 
 const BASELINE = "antiban/imports-baseline.txt";
@@ -49,7 +49,7 @@ export function resolveExe(ctx, arg) {
   return { exe: newest?.exe ?? null, tried };
 }
 
-function findDumpbin() {
+export function findDumpbin() {
   const vswhere = join(
     process.env["ProgramFiles(x86)"] ?? "C:/Program Files (x86)",
     "Microsoft Visual Studio/Installer/vswhere.exe",
@@ -63,7 +63,7 @@ function findDumpbin() {
   return out.split(/\r?\n/).find((line) => line.trim().endsWith("dumpbin.exe"))?.trim() ?? null;
 }
 
-const dumpbin = (tool, flag, exe) =>
+export const dumpbin = (tool, flag, exe) =>
   execFileSync(tool, ["/nologo", flag, exe], { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 });
 
 function parseImports(output) {
@@ -129,20 +129,9 @@ function checkSections(ctx, output) {
   else ctx.ok(`sections: ${sections.join(" ")}`);
 }
 
-// The web pages Tauri embeds come from dist/: the test transport must not be among them.
-function checkBundle(ctx) {
-  const files = walk(ctx.path("dist")).filter((file) => /\.(js|html)$/.test(file));
-  if (files.length === 0) {
-    ctx.fail("bundle: dist/ has no pages (run the release build first)");
-    return;
-  }
-  const mocked = files.filter((file) => readFileSync(file, "utf8").includes("__MAPPER_MOCK__"));
-  for (const file of mocked) ctx.fail(`bundle: ${ctx.rel(file)} contains the test transport`);
-  if (mocked.length === 0) ctx.ok(`bundle: ${files.length} file(s) in dist/, no test transport`);
-}
-
 export function checkExe(ctx, arg, baseline) {
-  checkBundle(ctx);
+  // The web pages Tauri embeds into the exe come from dist/.
+  checkDist(ctx);
   const { exe, tried } = resolveExe(ctx, arg);
   if (!exe || !existsSync(exe)) {
     ctx.fail(`exe: ${exe ?? tried.join(" | ")} not found (build the release exe first)`);

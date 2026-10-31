@@ -36,14 +36,20 @@ jobs:
       # The guard runs first and through node, not npm: an npm "pre*" hook added by a PR
       # would otherwise run before the guard could reject it.
       - run: node scripts/antiban-guard.mjs
+      # The guard's own tests: the lexer and every planted violation in antiban/fixtures.
+      - run: node --test "scripts/guard/*.test.mjs"
       - run: cargo deny --manifest-path src-tauri/Cargo.toml --config deny.toml check
       - run: npm run check
       - run: npm run test:coverage
       - run: npm run build
+      - run: node scripts/antiban-guard.mjs --dist
       # Overlay and HUD against the mock transport, in the runner's Microsoft Edge (no download).
       - run: npm run e2e
       - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
       - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings
       - run: cargo test --manifest-path src-tauri/Cargo.toml --locked
+      # Win32 functions Mapper's own code imports, before the linker mixes in the dependencies.
+      - run: cargo rustc --manifest-path src-tauri/Cargo.toml --profile guard-obj --lib --locked --quiet -- --emit=obj
+      - run: node scripts/antiban-guard.mjs --obj auto
       - run: npx tauri build --no-bundle
       - run: node scripts/antiban-guard.mjs --exe auto

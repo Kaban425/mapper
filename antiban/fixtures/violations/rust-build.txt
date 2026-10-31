@@ -1,0 +1,113 @@
+Linking, processes, the registry, the network and Tauri internals. Format: rust-input.txt.
+
+=== src-tauri/src/platform/win/sneaky.rs -> dynamic or raw linking
+let user32 = unsafe { LoadLibraryW(w!("user32.dll")) }?;
+let beep = unsafe { GetProcAddress(user32, s!("MessageBeep")) };
+
+=== src-tauri/src/platform/win/sneaky.rs -> dynamic or raw linking
+#[link(name = "user32", kind = "raw-dylib")]
+extern "system" {
+    fn MessageBeep(kind: u32) -> i32;
+}
+
+=== src-tauri/src/app/sneaky.rs -> code from outside the scanned folders
+include!("../../../../elsewhere/hidden.rs");
+
+=== src-tauri/src/app/sneaky.rs -> code from outside the scanned folders
+#[path = "../../../tools/hidden.rs"]
+mod hidden;
+
+=== src-tauri/src/app/sneaky.rs -> WinRT through the windows crate
+use windows::UI::Input::Preview::Injection::InputInjector;
+
+=== src-tauri/build.rs -> native code at link time; missing
+fn main() {
+    println!("cargo:rustc-link-arg=/INTEGRITYCHECK:NO");
+}
+
+=== src-tauri/src/platform/win/sneaky.rs -> inline assembly
+unsafe { core::arch::asm!("int3") };
+
+=== src-tauri/src/app/sneaky.rs -> process spawning
+std::process::Command::new("cmd").arg("/c").spawn()?;
+
+=== src-tauri/src/app/sneaky.rs -> process spawning
+use std::process::Command as Run;
+
+=== src-tauri/src/app/sneaky.rs -> process spawning
+app.restart();
+
+=== src-tauri/src/platform/win/shell.rs -> process spawning; missing
+Command::new("explorer").spawn()?;
+
+=== src-tauri/src/platform/win/shell.rs -> explorer arguments
+fn explorer() -> std::io::Result<PathBuf> {
+    let mut buffer = [0u16; 260];
+    let length = unsafe { GetSystemWindowsDirectoryW(Some(&mut buffer)) } as usize;
+    Ok(PathBuf::from(String::from_utf16_lossy(&buffer[..length])).join("explorer.exe"))
+}
+
+pub fn open_folder(folder: &Path) -> std::io::Result<()> {
+    Command::new(explorer()?).arg(folder).spawn()?;
+    Ok(())
+}
+
+pub fn open_link(link: &str) -> std::io::Result<()> {
+    Command::new(explorer()?).args(["/select,", link]).spawn()?;
+    Ok(())
+}
+
+=== src-tauri/src/platform/win/sneaky.rs -> registry
+unsafe { RegSetKeyValueW(HKEY_CURRENT_USER, w!("Software\\Other"), w!("x"), REG_SZ.0, None, 0) }.ok()?;
+
+=== src-tauri/src/platform/win/autostart.rs -> registry
+unsafe { RegSetKeyValueW(HKEY_LOCAL_MACHINE, RUN, VALUE, REG_SZ.0, Some(data), size) }.ok()?;
+
+=== src-tauri/src/platform/win/autostart.rs -> registry
+unsafe { RegSetKeyValueW(HKEY(0x8000_0002 as _), RUN, VALUE, REG_SZ.0, Some(data), size) }.ok()?;
+
+=== src-tauri/src/platform/win/autostart.rs -> none
+unsafe { RegSetKeyValueW(HKEY_CURRENT_USER, RUN, VALUE, REG_SZ.0, Some(data), size) }.ok()?;
+
+=== src-tauri/src/app/sneaky.rs -> network outside update/
+let stream = std::net::TcpStream::connect("127.0.0.1:9000")?;
+
+=== src-tauri/src/update/github.rs -> none
+let agent = ureq::Agent::new_with_defaults();
+
+=== src-tauri/src/app/sneaky.rs -> unsafe outside platform/win
+let value = unsafe { *pointer };
+
+=== src-tauri/src/app/overlay/mod.rs -> window effects
+builder = builder.effects(effects);
+
+=== src-tauri/src/app/sneaky.rs -> broadcast events (use emit_to)
+app.emit("snapshot", &snapshot)?;
+
+=== src-tauri/src/app/sneaky.rs -> none
+app.emit_to("main", "snapshot", &snapshot)?;
+
+=== src-tauri/src/app/sneaky.rs -> capabilities outside the ACL files
+app.add_capability(include_str!("../../extra.json"))?;
+
+=== src-tauri/src/app/sneaky.rs -> devtools
+window.open_devtools();
+
+=== src-tauri/Cargo.toml -> dependency overrides; missing
+[patch.crates-io]
+tao = { path = "../tao" }
+
+=== src-tauri/Cargo.toml -> missing
+tauri = { version = "2", features = ["tray-icon"], note = "# default-features = false" }
+
+=== src-tauri/nsis/hooks.nsh -> config
+!macro NSIS_HOOK_PREUNINSTALL
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "dev.mapper.app"
+  Exec '"$INSTDIR\helper.exe" --clean'
+!macroend
+
+=== src-tauri/nsis/hooks.nsh -> none
+; Removes only the autostart value; Exec, WriteRegStr and File appear here in a comment only.
+!macro NSIS_HOOK_PREUNINSTALL
+  DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "dev.mapper.app"
+!macroend
