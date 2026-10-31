@@ -2,7 +2,7 @@
 
 **Feature**: mapper-overlay
 **Started**: 2026-10-20
-**Status**: IN_PROGRESS — Phases 1–4 PASS and committed; Phase 5 (release and docs) next
+**Status**: IN_PROGRESS — Phases 1–4 PASS; Phase 5 published (github.com/Kaban425/mapper), T5.7 and the RAM decision open
 
 ## Phase 1: Каркас и платформа — PASS (2026-10-21)
 
@@ -514,3 +514,74 @@ uninstall hook, the network update check, and the rest of the guard.
 ### User validation
 - 2026-11-01: **PASS** — the author installed Mapper with the installer, ran it, turned on start with
   Windows and removed it through Settings → Apps: everything works. Commit approved.
+
+## Phase 5: Релиз и документация — published on the author's request (2026-11-01), T5.7 open
+
+Implemented directly (2026-11-01). The first public version stays 0.1.0; the
+v1.0 criteria (RAM, the guard limits from Phase 4, the in-game checklist) remain open.
+
+### Deliverables
+- T5.1 `.github/workflows/release.yml`: a tag `vX.Y.Z` / `vX.Y.Z-rc.N` on main → `version` (versions
+  agree, CHANGELOG notes exist, the tag is on main) → `checks.yml` without caches → `build` (no write
+  or signing token: object check, one `npx tauri build -- --locked`, the shipped portable copy
+  checked by the guard, uploaded as a workflow artifact) → `release` (tag runs only; runs no
+  dependency code: downloads the files, guard `--exe-only` on them again, refuses an existing
+  release, writes SHA256SUMS.txt and the notes, `attest-build-provenance` v4.2.2, `gh release create
+  --draft --verify-tag`). "Run workflow" only builds the artifact. All actions pinned by commit SHA.
+  **Deviation from the plan:** no tauri-action — one build, the guard checks the exe that ships, and
+  no third-party action holds the write token.
+- T5.2 `scripts/check-version.mjs`, `bump-version.mjs`, `release-notes.mjs` with pure helpers in
+  `scripts/release/` (7 tests, `npm run release:test`, in CI); `CHANGELOG.md` (Keep a Changelog,
+  entries in Russian and English, 0.1.0 under Unreleased until the bump); `npm run version:bump`,
+  `version:check`. Tried on a temporary copy: bump 0.1.0, `check v0.1.0` passes, `v0.1.1` is refused,
+  notes and SHA256SUMS written.
+- T5.3 `README.md` / `README.en.md`: what it is, the risk (its first paragraph is also the release
+  notes' risk text), does / doesn't, install (SmartScreen, SHA-256, attestations), uninstall, first
+  run, keys, troubleshooting, data and network, why the exe imports `SendInput` and the other 10
+  baseline functions, how it is checked, licence, not affiliated with KRAFTON. Relative links only,
+  so no account name is needed. No GIF yet: the author records one.
+- T5.4 `LICENSE` (MIT, "Mapper contributors"), `CONTRIBUTING.md`, `SECURITY.md` (GitHub private
+  vulnerability reporting), issue forms (bug; "scale doesn't match" — DPI and resolution merged into
+  one form, a deviation from three), blank issues off, PR template.
+- T5.5 `docs/in-game-checklist.md`, `docs/perf.md` (PowerShell for S-1 and S-3), `docs/dependency-audit.md`.
+- Guard: the wording rule also covers CONTRIBUTING, SECURITY, the PR template, `docs/` and the issue
+  forms, and finds a claim split over a line break (two planted cases); every baseline import must
+  be named in both READMEs; `--release` in CI also requires `REPO` to name the repository being
+  built; `--exe-only <file>` checks one exe without sources, cargo or `dist/`.
+- Fixed on the way: `checks.yml` line 7 was invalid YAML (an unquoted `: ` in the input
+  description), so GitHub would have refused the workflow; every workflow and form now parses.
+
+### Security review of the release pipeline — no CRITICAL, fixed (2026-11-01)
+- HIGH the build ran dependency code in the job that held the write and OIDC tokens: split into a
+  `build` job without them and a `release` job that runs no dependency code.
+- HIGH a manual run made a draft with the real tag from any branch: manual runs only build an
+  artifact; tags must be on main; the notes' verify command pins `--source-ref` and `--signer-workflow`.
+- MEDIUM the guard checked the exe before the shipped copy existed: the object check moved before
+  the build, the guard checks the copy after the last build step, and again in the release job.
+- MEDIUM the bump hint skipped main: the hint and CONTRIBUTING say pull request, merge, tag main.
+- LOW: an existing release for the tag fails the job; empty CHANGELOG notes and the lock file's
+  `packages[""]` version are checked; no `$` patterns in the Cargo.toml rewrite (tested);
+  `tauri build -- --locked`; `package-manager-cache: false`; rc → final documented; SECURITY names
+  "Check now". Not done: extracting the installer to compare its exe and the WebView2 bootstrapper
+  signature (no 7-Zip here to try it; the review confirmed the exe in the installer is byte-identical).
+- For the author on GitHub: turn on private vulnerability reporting, protect main and `v*` tags,
+  and make the repository public before the first release (attestations need it).
+
+### T5.6 local trial (2026-11-01)
+- Installer and portable from the Phase 4 build: guard on the exe (the installer holds the same
+  bytes), SHA-256 by the notes script, exe 4.5 MB and installer 3.4 MB (target ≤ 8 MB).
+- Tray only, release exe, 150 s after start: CPU 0.010 % (target ≤ 0.05 %); working set 171 MB,
+  private 178 MB over 8 processes — WebView2 browser 61, mapper 35, two renderers 21 + 16, network
+  14, crashpad 14, GPU 8, storage 2. **Above the 80 MB target**: the spike's 69 MB had two web
+  views, Mapper has three. Turning off the spare renderer changed nothing (reverted). Open: the
+  author decides between recording the number and creating the main window only when it opens.
+
+### Verification
+- guard passed (also `--release` with `REPO = Kaban425/mapper`); its tests 109/109; release scripts
+  7/7; svelte-check 0/0; Vitest 411/411; Rust fmt, clippy `-D warnings`, 108/108.
+
+### Publishing (2026-11-01)
+- The author created github.com/Kaban425/mapper and asked to upload everything. `REPO` names it,
+  so the update check and the links are live from 0.1.0. Every commit's author and committer were
+  rewritten from the local placeholder to Kaban425 with the GitHub noreply address (dates kept).
+- Open: the in-game checklist on the release build (T5.7), the RAM decision (T5.6).

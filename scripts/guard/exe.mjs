@@ -30,6 +30,23 @@ export function readBaseline(ctx) {
   return result;
 }
 
+const READMES = ["README.md", "README.en.md"];
+
+/** Every baseline entry is explained to players in both READMEs ("Why the exe contains SendInput"). */
+export function checkBaselineDocs(ctx, baseline) {
+  for (const readme of READMES) {
+    const text = ctx.read(readme);
+    if (text === null) {
+      ctx.fail(`docs    ${readme} is missing`);
+      continue;
+    }
+    for (const name of baseline.entries.keys()) {
+      if (!text.includes(`\`${name}\``)) ctx.fail(`docs    ${readme}: the baseline import ${name} is not explained`);
+    }
+  }
+  ctx.ok(`docs: ${baseline.entries.size} baseline imports explained in ${READMES.join(" and ")}`);
+}
+
 /**
  * `auto` takes the newest release exe among CARGO_TARGET_DIR, src-tauri/target and the local
  * default, so a stale build elsewhere is never audited instead of the fresh one.
@@ -129,9 +146,10 @@ function checkSections(ctx, output) {
   else ctx.ok(`sections: ${sections.join(" ")}`);
 }
 
-export function checkExe(ctx, arg, baseline) {
+/** `dist: false` checks the exe alone (the release job, which has no web build). */
+export function checkExe(ctx, arg, baseline, { dist = true } = {}) {
   // The web pages Tauri embeds into the exe come from dist/.
-  checkDist(ctx);
+  if (dist) checkDist(ctx);
   const { exe, tried } = resolveExe(ctx, arg);
   if (!exe || !existsSync(exe)) {
     ctx.fail(`exe: ${exe ?? tried.join(" | ")} not found (build the release exe first)`);

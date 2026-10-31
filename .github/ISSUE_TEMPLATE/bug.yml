@@ -1,0 +1,49 @@
+name: Ошибка · Bug
+description: Что-то работает не так · Something doesn't work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Сначала загляни в «Если что-то не так» в README · First see "If something is wrong" in the README.
+        Уязвимость? Не сюда — см. SECURITY.md · A vulnerability? Not here — see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Версия Mapper · Mapper version
+      description: «О программе» · About
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Как установлен · Installed as
+      options:
+        - Установщик · Installer
+        - Portable
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows
+      placeholder: "Windows 11 24H2"
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Что случилось · What happened
+      description: Шаги, что ждал и что вышло · Steps, what you expected and what happened
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Журнал · Log
+      description: >-
+        Последние строки mapper.log («О программе» → папка журнала). В журнале нет личных данных,
+        но проверь перед отправкой · The last lines of mapper.log (About → log folder). It holds
+        no personal data, but check before posting.
+      render: text

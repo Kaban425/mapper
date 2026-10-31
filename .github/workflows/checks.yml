@@ -4,7 +4,7 @@ on:
   workflow_call:
     inputs:
       release:
-        description: Release build: no npm or Rust caches, so nothing restored from a cache reaches the shipped exe.
+        description: "Release build: no npm or Rust caches, so nothing restored from a cache reaches the shipped exe."
         type: boolean
         default: false
 
@@ -38,6 +38,8 @@ jobs:
       - run: node scripts/antiban-guard.mjs
       # The guard's own tests: the lexer and every planted violation in antiban/fixtures.
       - run: node --test "scripts/guard/*.test.mjs"
+      # The version, changelog and release-notes scripts the release workflow runs.
+      - run: node --test "scripts/release/*.test.mjs"
       - run: cargo deny --manifest-path src-tauri/Cargo.toml --config deny.toml check
       - run: npm run check
       - run: npm run test:coverage

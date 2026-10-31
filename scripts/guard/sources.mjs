@@ -14,6 +14,7 @@ import {
   IMPORT_RULES,
   NEGATION_BEFORE,
   RELEASE_PLACEHOLDERS,
+  REPO_FILE,
   REQUIRED,
   SOURCE_DIRS,
   SOURCE_EXT,
@@ -145,6 +146,12 @@ export function checkRelease(ctx) {
   for (const { file, pattern, why } of RELEASE_PLACEHOLDERS) {
     if (pattern.test(stripLineComments(ctx.read(file) ?? ""))) ctx.fail(`release ${file}: ${why}`);
   }
+  // In CI: the update check and the release notes name the repository the release comes from.
+  const repo = /REPO:\s*&str\s*=\s*"([^"]+)"/.exec(ctx.read(REPO_FILE) ?? "")?.[1];
+  const building = process.env.GITHUB_REPOSITORY;
+  if (building && repo?.toLowerCase() !== building.toLowerCase()) {
+    ctx.fail(`release ${REPO_FILE}: REPO is ${repo}, but this repository is ${building}`);
+  }
   ctx.ok(`release: ${RELEASE_PLACEHOLDERS.length} placeholder check(s)`);
 }
 
@@ -159,6 +166,21 @@ export function findClaim(line) {
 }
 
 // C-7: the README and every user-facing text never promise that the tool is safe or undetected.
+/**
+ * Claims line by line, and one split over a line break (hard-wrapped Markdown reads as one
+ * sentence). Whole-line `//` comments are skipped, e.g. `// SAFETY:` notes in Rust.
+ */
+export function findClaims(text) {
+  const lines = text.split(/\r?\n/).map((line) => (isLineComment(line) ? "" : line));
+  const found = [];
+  lines.forEach((line, index) => {
+    const next = lines[index + 1] ?? "";
+    const claim = findClaim(line) ?? (findClaim(next) ? null : findClaim(`${line.trimEnd()} ${next.trimStart()}`));
+    if (claim) found.push({ line: index + 1, claim, text: line.trim() });
+  });
+  return found;
+}
+
 export function checkWords(ctx) {
   const readmes = readdirSync(ctx.root).filter((name) => /^README.*\.md$/i.test(name));
   const files = [
@@ -167,14 +189,9 @@ export function checkWords(ctx) {
     ...WORD_DIRS.flatMap((dir) => walk(ctx.path(dir)).map(ctx.rel)),
   ];
   for (const path of files) {
-    ctx
-      .read(path)
-      .split("\n")
-      .forEach((line, index) => {
-        if (isLineComment(line)) return; // e.g. `// SAFETY:` notes in Rust
-        const claim = findClaim(line);
-        if (claim) ctx.fail(`words   ${path}:${index + 1}  "${claim}"  ${line.trim().slice(0, 140)}`);
-      });
+    for (const { line, claim, text } of findClaims(ctx.read(path))) {
+      ctx.fail(`words   ${path}:${line}  "${claim}"  ${text.slice(0, 140)}`);
+    }
   }
   ctx.ok(`wording: ${files.length} file(s) checked for safety claims`);
 }

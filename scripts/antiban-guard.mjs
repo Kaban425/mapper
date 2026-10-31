@@ -16,7 +16,7 @@ import { checkCargoLock, checkCargoManifest, checkCrateAllowlist, checkNativeFil
 import { createContext } from "./guard/context.mjs";
 import { checkAuditedVersions, checkCrates, checkNpm, lockVersions } from "./guard/deps.mjs";
 import { checkDist } from "./guard/dist.mjs";
-import { checkExe, readBaseline } from "./guard/exe.mjs";
+import { checkBaselineDocs, checkExe, readBaseline } from "./guard/exe.mjs";
 import { checkObject } from "./guard/obj.mjs";
 import { checkRelease, checkRequired, checkSources, checkWords } from "./guard/sources.mjs";
 import { checkCapabilities, checkCommandSets, checkTauriConfig } from "./guard/tauri.mjs";
@@ -27,7 +27,14 @@ function main() {
   const args = process.argv.slice(2);
   const exeIndex = args.indexOf("--exe");
   const objIndex = args.indexOf("--obj");
+  const exeOnly = args.indexOf("--exe-only");
   const ctx = createContext(ROOT);
+  if (exeOnly >= 0) {
+    // The release job checks the downloaded exe only: no sources, no cargo, no dist/.
+    checkExe(ctx, args[exeOnly + 1] ?? "", readBaseline(ctx), { dist: false });
+    report(ctx);
+    return;
+  }
   const versions = lockVersions(ctx);
   const baseline = readBaseline(ctx);
 
@@ -43,12 +50,16 @@ function main() {
   checkNativeFiles(ctx);
   checkCrates(ctx, versions);
   checkAuditedVersions(ctx, baseline, versions);
+  checkBaselineDocs(ctx, baseline);
   checkNpm(ctx);
   if (exeIndex >= 0) checkExe(ctx, args[exeIndex + 1] ?? "auto", baseline);
   if (args.includes("--dist") && exeIndex < 0) checkDist(ctx);
   if (objIndex >= 0) checkObject(ctx, args[objIndex + 1] ?? "auto");
   if (args.includes("--release")) checkRelease(ctx);
+  report(ctx);
+}
 
+function report(ctx) {
   for (const note of ctx.notes) console.log(`  ok  ${note}`);
   if (ctx.problems.length > 0) {
     console.error(`\nanti-ban guard FAILED (${ctx.problems.length}):`);

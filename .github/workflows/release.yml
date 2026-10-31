@@ -1,0 +1,144 @@
+name: release
+
+# A tag vX.Y.Z (or vX.Y.Z-rc.N) on main builds a draft release: the installer, the portable exe,
+# their SHA-256 and build attestations (plan/eng.md §9). Nothing is published: the maintainer
+# reads the draft and publishes it by hand. "Run workflow" only builds the files as a workflow
+# artifact for testing; it never makes a release.
+#
+# The build job runs the code of every dependency (build scripts, bundler plugins), so it gets no
+# write or signing token. The release job gets them and runs no dependency code: Mapper's own
+# scripts, node and dumpbin only. One `tauri build` makes both files, so the guard checks the
+# very exe that ships as the portable and inside the installer.
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.check.outputs.version }}
+      tag: ${{ steps.check.outputs.tag }}
+      prerelease: ${{ steps.check.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      # The tag reaches the script through the environment, never into the command line.
+      - id: check
+        env:
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: node scripts/check-version.mjs "$TAG"
+      - name: The tag is on main
+        if: github.ref_type == 'tag'
+        run: |
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main ||
+            { echo "::error::$GITHUB_REF_NAME is not on main: merge the release commit first"; exit 1; }
+
+  checks:
+    needs: version
+    uses: ./.github/workflows/checks.yml
+    with:
+      release: true
+
+  build:
+    needs: [version, checks]
+    runs-on: windows-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      # No caches: nothing restored from a cache reaches the shipped exe.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - run: rustup show active-toolchain
+      # Placeholders (the OWNER/mapper repository) and a REPO naming another repository fail
+      # before anything is built. A trial run may still carry them: it ships nothing.
+      - if: github.ref_type == 'tag'
+        run: node scripts/antiban-guard.mjs --release
+      - run: cargo rustc --manifest-path src-tauri/Cargo.toml --profile guard-obj --lib --locked --quiet -- --emit=obj
+      - run: node scripts/antiban-guard.mjs --obj auto
+      - run: npx tauri build -- --locked
+      - name: Collect the release files
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory release | Out-Null
+          Copy-Item "src-tauri/target/release/bundle/nsis/Mapper_${env:VERSION}_x64-setup.exe" release/
+          Copy-Item src-tauri/target/release/mapper.exe "release/Mapper_${env:VERSION}_x64_portable.exe"
+      # The copy that ships, after the last build step.
+      - run: node scripts/antiban-guard.mjs --exe "release/Mapper_${env:VERSION}_x64_portable.exe"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: mapper-${{ env.VERSION }}
+          path: release/
+          if-no-files-found: error
+          retention-days: 7
+
+  release:
+    needs: [version, build]
+    if: github.ref_type == 'tag'
+    runs-on: windows-latest
+    permissions:
+      contents: write # the draft release
+      id-token: write # build attestations
+      attestations: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ needs.version.outputs.tag }}
+      PRERELEASE: ${{ needs.version.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: mapper-${{ env.VERSION }}
+          path: release/
+      # Again here, on the bytes that are signed and uploaded (no npm, no cargo in this job).
+      - run: node scripts/antiban-guard.mjs --exe-only "release/Mapper_${env:VERSION}_x64_portable.exe"
+      - name: No release for this tag yet
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "::error::a release or draft for $TAG exists already: delete it before running again"; exit 1
+          fi
+      - name: Release notes and SHA256SUMS.txt
+        shell: bash
+        run: node scripts/release-notes.mjs "$VERSION" "$GITHUB_REPOSITORY" release > notes.md
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: release/*.exe
+      - name: Draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=()
+          if [ "$PRERELEASE" = "true" ]; then flags+=(--prerelease); fi
+          gh release create "$TAG" --draft --verify-tag --title "Mapper $TAG" --notes-file notes.md \
+            "${flags[@]}" release/*

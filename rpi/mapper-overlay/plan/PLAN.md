@@ -141,6 +141,9 @@ Git с коммитом на каждую фазу).
 
 ## Фаза 5. Релиз и документация
 
+- [~] Фаза 5: выложено 2026-11-01 (github.com/Kaban425/mapper), подробности в `implement/IMPLEMENT.md`;
+  открыты T5.7 (чеклист в игре на релизной сборке) и решение по RAM (171 МБ при цели 80 МБ).
+
 | ID | Задача | Сложн. | Зависит | Где |
 |---|---|---|---|---|
 | T5.1 | `release.yml`: проверка версии, `checks.yml`, tauri-action@v1 (NSIS, затем portable `uploadPlainBinary`), `guard:exe`/`guard:obj` по релизному exe, `SHA256SUMS.txt`, attestations, черновик | M | T1.11, T4.7 | `.github/workflows` |

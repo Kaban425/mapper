@@ -1,0 +1,52 @@
+name: Масштаб не совпадает · Scale doesn't match
+description: Сетка или расстояния не сходятся с картой (разрешение, масштаб Windows, мониторы) · The grid or distances don't match the map (resolution, Windows scale, monitors)
+labels: [scale]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Версия Mapper · Mapper version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: display
+    attributes:
+      label: Монитор и разрешение игры · Monitor and game resolution
+      placeholder: "27\", 2560×1440, игра 2560×1440"
+    validations:
+      required: true
+  - type: input
+    id: scale
+    attributes:
+      label: Масштаб Windows · Windows scale
+      placeholder: "125 %"
+    validations:
+      required: true
+  - type: dropdown
+    id: zoom
+    attributes:
+      label: Зум · Zoom
+      options:
+        - "Alt+Q — карта приближена · zoomed in"
+        - "Alt+W — карта отдалена · zoomed out"
+        - Оба · Both
+    validations:
+      required: true
+  - type: dropdown
+    id: monitors
+    attributes:
+      label: Мониторы · Monitors
+      options:
+        - Один · One
+        - Несколько, одинаковый масштаб · Several, same scale
+        - Несколько, разный масштаб или вертикальный · Several, different scale or vertical
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Что не так · What is off
+      description: Например «3 клетки по 100 м показывают 290 м» · For example "3 cells of 100 m show 290 m"
+    validations:
+      required: true

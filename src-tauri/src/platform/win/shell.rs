@@ -13,9 +13,9 @@ use serde::Deserialize;
 use tauri::{AppHandle, Manager};
 use windows::Win32::System::SystemInformation::GetSystemWindowsDirectoryW;
 
-/// `owner/name` on GitHub; one constant, replaced by the author before publishing (the
-/// release guard refuses the placeholder).
-pub const REPO: &str = "OWNER/mapper";
+/// `owner/name` on GitHub: the links, the update check and the release notes use it; in CI the
+/// release guard requires it to name the repository being built.
+pub const REPO: &str = "Kaban425/mapper";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "camelCase")]

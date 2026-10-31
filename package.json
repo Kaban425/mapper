@@ -17,6 +17,9 @@
     "guard:obj": "cargo rustc --manifest-path src-tauri/Cargo.toml --profile guard-obj --lib --locked --quiet -- --emit=obj && node scripts/antiban-guard.mjs --obj auto",
     "guard:test": "node --test \"scripts/guard/*.test.mjs\"",
     "guard:all": "node scripts/antiban-guard.mjs && npm run guard:test && npm run guard:obj && node scripts/antiban-guard.mjs --exe auto",
+    "release:test": "node --test \"scripts/release/*.test.mjs\"",
+    "version:bump": "node scripts/bump-version.mjs",
+    "version:check": "node scripts/check-version.mjs",
     "tauri": "tauri",
     "e2e": "playwright test"
   },

@@ -318,6 +318,8 @@ export const CLAIMS = [
 ];
 
 // Release builds only: placeholders that must be replaced before publishing.
+// The file whose REPO constant names the repository (update check, links, release notes).
+export const REPO_FILE = SHELL_RS;
 export const RELEASE_PLACEHOLDERS = [
   { file: SHELL_RS, pattern: /REPO:\s*&str\s*=\s*"OWNER\//, why: "the GitHub repository is still OWNER/mapper" },
 ];
@@ -327,13 +329,16 @@ export const NEGATION_BEFORE = /(^|[\s(«"'])(не|нет|ни|not|no|never|cann
 // Every place a user reads text from: docs, UI sources, tray and dialogs, installer metadata.
 export const WORD_FILES = [
   "CHANGELOG.md",
+  "CONTRIBUTING.md",
+  "SECURITY.md",
+  ".github/pull_request_template.md",
   "package.json",
   "src-tauri/Cargo.toml",
   "src-tauri/tauri.conf.json",
   "src-tauri/src/app/tray.rs",
   "src-tauri/src/lib.rs",
 ];
-export const WORD_DIRS = ["src/apps", "src/lib/i18n", "src/lib/components"];
+export const WORD_DIRS = ["src/apps", "src/lib/i18n", "src/lib/components", "docs", ".github/ISSUE_TEMPLATE"];
 
 export const CSP_CONNECT = {
   csp: ["ipc:", "http://ipc.localhost"],

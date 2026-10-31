@@ -12,6 +12,14 @@ export const about = "Это безопасно: бана не будет.";
 === README.md -> words
 Mapper is a ban-free ruler for the map.
 
+=== README.md -> words
+Mapper only uses your clicks, so there is no
+risk at all for your account.
+
+=== docs/faq.md -> words
+Mapper считает только по твоим кликам, поэтому играй без
+риска.
+
 === src/lib/i18n/main.en.ts -> none
 export const honest = "Mapper is not guaranteed safe.";
 
