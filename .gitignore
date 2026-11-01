@@ -23,3 +23,6 @@ Thumbs.db
 
 # Local copy of the release exe for testing in game
 test-build/
+
+# Files the release workflow collects for upload
+/release/
