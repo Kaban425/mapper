@@ -591,5 +591,7 @@ v1.0 criteria (RAM, the guard limits from Phase 4, the in-game checklist) remain
   `--exe-only` passes on the downloaded portable (348 imports by name with CI's toolchain, 12 by
   ordinal, all from WS2_32), and each file has one attestation from `release.yml` at
   `refs/tags/v0.1.0`.
-- Open: the in-game checklist on the release build (T5.7), the RAM decision (T5.6); on GitHub,
-  private vulnerability reporting and protection for main and `v*` tags.
+- GitHub settings (2026-11-01): private vulnerability reporting on; ruleset `main` (no deletion,
+  no force push) and ruleset `release tags` for `v*` (only repository admins create, update or
+  delete them; no force push).
+- Open: the in-game checklist on the release build (T5.7), the RAM decision (T5.6).
